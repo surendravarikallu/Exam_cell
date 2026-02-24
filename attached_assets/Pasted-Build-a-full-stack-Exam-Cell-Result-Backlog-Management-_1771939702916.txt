@@ -1,0 +1,249 @@
+Build a full-stack **Exam Cell Result & Backlog Management System** for a college with approximately 1500 students.
+
+The system must allow administrators to upload results, track multiple attempts (regular, supplementary, revaluation), detect backlogs, compute SGPA/CGPA, and generate reports.
+
+Use a clean, modular structure and ensure the app runs fully in Replit.
+
+---
+
+# 🧱 Tech Stack
+
+* Frontend: React + Tailwind CSS
+* Backend: Node.js + Express
+* Database: PostgreSQL (use Prisma ORM)
+* Authentication: JWT
+* File uploads: multer
+* Charts: Chart.js
+
+---
+
+# 📁 Project Structure
+
+Create the following structure:
+
+/app
+/client   → React frontend
+/server   → Express backend
+/prisma   → schema.prisma
+/uploads  → uploaded result files
+
+---
+
+# 🔐 Admin Authentication
+
+Create secure admin login:
+
+* Email & password login
+* bcrypt password hashing
+* JWT authentication
+* Protected dashboard routes
+
+---
+
+# 🏫 Header (shown on all pages)
+
+KITS AKSHAR INSTITUTE OF TECHNOLOGY
+Exam Cell Automation System
+
+---
+
+# 📤 Admin Upload Module
+
+Allow admin to upload result files (CSV or Excel).
+
+### Upload form fields:
+
+* Exam Type: REGULAR | SUPPLY | REVALUATION
+* Academic Year
+* Semester (e.g., 3-1)
+* Branch
+* Regulation
+
+Store uploaded file in `/uploads`.
+
+Parse file and extract:
+
+* Roll Number
+* Student Name
+* Subject Code
+* Subject Name
+* Grade
+* Credits
+
+---
+
+# 🧠 Attempt-Aware Result Logic
+
+Each subject result is an attempt.
+
+When new results are uploaded:
+
+1. Find student & subject.
+2. Set previous attempts `isLatest = false`.
+3. Insert new attempt with:
+
+   * attemptNo = previous attempts + 1
+   * isLatest = true
+4. Determine backlog:
+
+   * Grade F, ABSENT, or credits = 0 → BACKLOG
+
+---
+
+# 🗄️ Database Schema (Prisma)
+
+Create models:
+
+## Student
+
+* id
+* rollNumber (unique)
+* name
+* branch
+* batch
+* regulation
+
+## Subject
+
+* id
+* subjectCode
+* subjectName
+* credits
+* semester
+* branch
+
+## Result
+
+* id
+* studentId
+* subjectId
+* semester
+* academicYear
+* examType
+* attemptNo
+* grade
+* gradePoints
+* creditsEarned
+* status (PASS/BACKLOG)
+* isLatest
+* createdAt
+
+## SemesterSummary
+
+* id
+* studentId
+* semester
+* sgpa
+* backlogCount
+* creditsEarned
+
+## CumulativeSummary
+
+* studentId
+* cgpa
+* totalCredits
+* totalBacklogs
+
+---
+
+# 🧮 SGPA & CGPA Logic
+
+SGPA =
+sum(gradePoints × credits) / sum(credits)
+
+CGPA =
+use only latest attempts across all semesters.
+
+---
+
+# 📊 Dashboard Features
+
+## 1️⃣ Student Search
+
+Search by roll number and display:
+
+* Name
+* Branch
+* SGPA per semester
+* CGPA
+* Total Credits
+* Backlog count
+* Subject-wise results
+* Attempt history
+
+---
+
+## 2️⃣ Backlog Reports
+
+Filters:
+
+* Branch
+* Semester
+* Academic Year
+
+Display:
+
+* Student backlog counts
+* Backlog subjects
+* Total backlogs per branch
+
+---
+
+## 3️⃣ Analytics Dashboard
+
+Charts:
+
+* Branch-wise backlog distribution
+* Pass percentage
+* Most failed subjects
+* Top performers
+
+---
+
+# 📤 Export Features
+
+Allow exporting reports to:
+
+* CSV
+* Print-friendly format
+
+---
+
+# ⚡ Performance Requirements
+
+* Support 1500+ students
+* Use database indexes on rollNumber and studentId
+* Precompute summaries after uploads
+
+---
+
+# 🧠 Order Independence
+
+System must correctly handle:
+
+* Uploading semesters in any order
+* Supplementary uploaded before regular
+* Revaluation uploaded anytime
+
+---
+
+# 🔐 Data Integrity
+
+* Prevent duplicate results
+* Maintain attempt history
+* Log upload history
+
+---
+
+# 🚀 Deliverables
+
+Generate:
+
+* Working full-stack app
+* Prisma schema & migrations
+* API routes for upload, search, reports
+* React dashboard with tables & charts
+* Attempt-aware result handling
+* Backlog report generation
+
+The application must run successfully inside Replit with clear setup instructions.
