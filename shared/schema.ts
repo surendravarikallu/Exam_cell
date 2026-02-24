@@ -1,18 +1,79 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
+export const admins = pgTable("admins", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const students = pgTable("students", {
+  id: serial("id").primaryKey(),
+  rollNumber: text("roll_number").notNull().unique(),
+  name: text("name").notNull(),
+  branch: text("branch").notNull(),
+  batch: text("batch").notNull(),
+  regulation: text("regulation").notNull(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const subjects = pgTable("subjects", {
+  id: serial("id").primaryKey(),
+  subjectCode: text("subject_code").notNull().unique(),
+  subjectName: text("subject_name").notNull(),
+  credits: integer("credits").notNull(),
+  semester: text("semester").notNull(),
+  branch: text("branch").notNull(),
+});
+
+export const results = pgTable("results", {
+  id: serial("id").primaryKey(),
+  studentId: integer("student_id").notNull().references(() => students.id),
+  subjectId: integer("subject_id").notNull().references(() => subjects.id),
+  semester: text("semester").notNull(),
+  academicYear: text("academic_year").notNull(),
+  examType: text("exam_type").notNull(), // REGULAR, SUPPLY, REVALUATION
+  attemptNo: integer("attempt_no").notNull(),
+  grade: text("grade").notNull(),
+  gradePoints: integer("grade_points").notNull(),
+  creditsEarned: integer("credits_earned").notNull(),
+  status: text("status").notNull(), // PASS, BACKLOG
+  isLatest: boolean("is_latest").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Base schemas
+export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
+export const insertStudentSchema = createInsertSchema(students).omit({ id: true });
+export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
+export const insertResultSchema = createInsertSchema(results).omit({ id: true, createdAt: true });
+
+// Explicit types
+export type Admin = typeof admins.$inferSelect;
+export type InsertAdmin = z.infer<typeof insertAdminSchema>;
+
+export type Student = typeof students.$inferSelect;
+export type InsertStudent = z.infer<typeof insertStudentSchema>;
+
+export type Subject = typeof subjects.$inferSelect;
+export type InsertSubject = z.infer<typeof insertSubjectSchema>;
+
+export type Result = typeof results.$inferSelect;
+export type InsertResult = z.infer<typeof insertResultSchema>;
+
+export type ResultWithRelations = Result & {
+  subject: Subject;
+};
+
+export type StudentDetails = Student & {
+  results: ResultWithRelations[];
+  sgpaPerSemester: Record<string, number>;
+  cgpa: number;
+  totalCredits: number;
+  backlogCount: number;
+};
+
+export type AuthResponse = {
+  user: { id: number; email: string } | null;
+  token?: string;
+};
