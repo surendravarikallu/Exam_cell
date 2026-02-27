@@ -23,12 +23,12 @@ export const api = {
       method: 'POST' as const,
       path: '/api/auth/login' as const,
       input: z.object({
-        email: z.string().email(),
+        username: z.string(),
         password: z.string(),
       }),
       responses: {
         200: z.object({
-          user: z.object({ id: z.number(), email: z.string() }),
+          user: z.object({ id: z.number(), username: z.string() }),
           token: z.string(),
         }),
         401: errorSchemas.unauthorized,
@@ -39,7 +39,7 @@ export const api = {
       path: '/api/auth/me' as const,
       responses: {
         200: z.object({
-          user: z.object({ id: z.number(), email: z.string() }),
+          user: z.object({ id: z.number(), username: z.string() }),
         }),
         401: errorSchemas.unauthorized,
       },
@@ -66,8 +66,18 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
-  },
-  students: {
+    students: {
+      method: 'POST' as const,
+      path: '/api/upload/students' as const,
+      responses: {
+        200: z.object({
+          message: z.string(),
+          processed: z.number(),
+          errors: z.array(z.string()).optional(),
+        }),
+        400: errorSchemas.validation,
+      },
+    },
     search: {
       method: 'GET' as const,
       path: '/api/students' as const,
@@ -100,6 +110,17 @@ export const api = {
         200: z.array(z.any()), // Backlog student details
       },
     },
+    cumulative: {
+      method: 'GET' as const,
+      path: '/api/reports/cumulative-backlogs' as const,
+      input: z.object({
+        branch: z.string().optional(),
+        batch: z.string().optional(),
+      }).optional(),
+      responses: {
+        200: z.array(z.any()), // Cumulative backlog student details
+      },
+    },
     analytics: {
       method: 'GET' as const,
       path: '/api/reports/analytics' as const,
@@ -111,7 +132,49 @@ export const api = {
         }),
       },
     },
-  }
+  },
+  admins: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/admins' as const,
+      responses: {
+        200: z.array(z.object({ id: z.number(), username: z.string() })),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/admins' as const,
+      input: z.object({
+        username: z.string().min(3),
+        password: z.string().min(6),
+      }),
+      responses: {
+        200: z.object({ id: z.number(), username: z.string() }),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/admins/:id' as const,
+      input: z.object({
+        username: z.string().min(3),
+        password: z.string().min(6).optional(),
+      }),
+      responses: {
+        200: z.object({ id: z.number(), username: z.string() }),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/admins/:id' as const,
+      responses: {
+        200: z.object({ success: z.boolean() }),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {

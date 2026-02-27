@@ -9,47 +9,48 @@
     --font-sans: 'Inter', sans-serif;
     --font-display: 'Outfit', sans-serif;
 
-    /* Professional Dark Collegiate Theme */
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
+    /* Professional Light Collegiate Theme */
+    --background: 210 40% 98%; /* slate-50 */
+    --foreground: 222 47% 11%;
 
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    /* Collegiate Gold / Amber */
-    --primary: 43 96% 56%;
-    --primary-foreground: 222 47% 11%;
+    /* Deep Navy Blue */
+    --primary: 222 47% 20%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 217 32% 17%;
-    --secondary-foreground: 210 40% 98%;
+    /* Academic Gold */
+    --secondary: 43 96% 56%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 217 32% 17%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 217 32% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --ring: 43 96% 56%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222 47% 20%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
     /* Chart Colors */
-    --chart-1: 43 96% 56%; /* Gold */
-    --chart-2: 217 90% 60%; /* Blue */
+    --chart-1: 222 47% 20%; /* Navy Blue */
+    --chart-2: 43 96% 56%; /* Gold */
     --chart-3: 142 70% 50%; /* Green */
     --chart-4: 0 84% 60%; /* Red */
     --chart-5: 280 65% 60%; /* Purple */
   }
 
-  /* Force dark mode */
+  /* Force dark mode to still be clean if forced, but default to light */
   .dark {
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
@@ -61,7 +62,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
     font-family: var(--font-sans);
   }
   h1, h2, h3, h4, h5, h6 {
@@ -72,9 +73,9 @@
 
 @layer utilities {
   .glass-panel {
-    @apply bg-card/60 backdrop-blur-xl border border-white/10 shadow-xl shadow-black/40;
+    @apply bg-white border border-slate-200 shadow-xl shadow-slate-200/50 rounded-2xl;
   }
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-amber-300;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-700;
   }
 }

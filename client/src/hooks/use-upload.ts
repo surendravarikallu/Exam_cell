@@ -42,3 +42,44 @@ export function useUploadResults() {
     },
   });
 }
+
+export function useUploadStudents() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/upload/students", {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Upload failed" }));
+        throw new Error(errorData.message || "Failed to upload students");
+      }
+
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Students Master Data Synced",
+        description: `Successfully processed ${data.processed} students.`,
+        variant: "default",
+      });
+      // Invalidate relevant queries since student info changed
+      queryClient.invalidateQueries({ queryKey: ["/api/students"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports/backlogs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports/cumulative-backlogs"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Student Sync Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}

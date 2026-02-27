@@ -14,6 +14,7 @@ import UploadResults from "@/pages/upload";
 import Students from "@/pages/students";
 import StudentProfile from "@/pages/student-profile";
 import Reports from "@/pages/reports";
+import Admins from "@/pages/admins";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { user, isLoading } = useAuth();
@@ -32,13 +33,14 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      
+
       {/* Protected Routes */}
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/upload" component={() => <ProtectedRoute component={UploadResults} />} />
       <Route path="/students" component={() => <ProtectedRoute component={Students} />} />
       <Route path="/students/:id" component={() => <ProtectedRoute component={StudentProfile} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={Reports} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={Admins} />} />
 
       {/* Fallback to 404 */}
       <Route component={() => (

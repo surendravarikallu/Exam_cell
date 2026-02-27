@@ -4,7 +4,7 @@ import { z } from "zod";
 
 export const admins = pgTable("admins", {
   id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
+  username: text("username").notNull().unique(),
   password: text("password").notNull(),
 });
 
@@ -21,7 +21,7 @@ export const subjects = pgTable("subjects", {
   id: serial("id").primaryKey(),
   subjectCode: text("subject_code").notNull().unique(),
   subjectName: text("subject_name").notNull(),
-  credits: integer("credits").notNull(),
+  credits: doublePrecision("credits").notNull(),
   semester: text("semester").notNull(),
   branch: text("branch").notNull(),
 });
@@ -36,14 +36,20 @@ export const results = pgTable("results", {
   attemptNo: integer("attempt_no").notNull(),
   grade: text("grade").notNull(),
   gradePoints: integer("grade_points").notNull(),
-  creditsEarned: integer("credits_earned").notNull(),
+  creditsEarned: doublePrecision("credits_earned").notNull(),
   status: text("status").notNull(), // PASS, BACKLOG
   isLatest: boolean("is_latest").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Base schemas
-export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
+export const insertAdminSchema = createInsertSchema(admins).pick({
+  username: true,
+  password: true,
+}).extend({
+  username: z.string().min(3),
+  password: z.string().min(6), // Enforce minimum password length
+});
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true });
 export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
 export const insertResultSchema = createInsertSchema(results).omit({ id: true, createdAt: true });

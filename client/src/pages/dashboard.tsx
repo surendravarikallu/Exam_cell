@@ -1,7 +1,7 @@
 import React from "react";
 import { useAnalytics } from "@/hooks/use-reports";
 import { Users, FileWarning, TrendingUp, Award, Loader2 } from "lucide-react";
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
@@ -41,14 +41,14 @@ export default function Dashboard() {
     { name: "Passed", value: stats.passPercentage },
     { name: "Failed", value: 100 - stats.passPercentage },
   ];
-  
+
   const COLORS = ['hsl(43, 96%, 56%)', 'hsl(0, 84%, 60%)']; // Primary Gold, Destructive Red
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-white">Dashboard Overview</h1>
-        <p className="text-muted-foreground mt-1">Real-time statistics for current academic sessions.</p>
+        <h1 className="text-3xl font-display font-bold text-slate-900">Dashboard Overview</h1>
+        <p className="text-slate-500 mt-1">Real-time statistics for current academic sessions.</p>
       </div>
 
       {/* Summary Cards */}
@@ -56,7 +56,7 @@ export default function Dashboard() {
         {[
           { title: "Overall Pass Rate", value: `${stats.passPercentage.toFixed(1)}%`, icon: Award, color: "text-primary", bg: "bg-primary/10" },
           { title: "Total Backlogs", value: stats.branchWiseBacklogs.reduce((acc: number, curr: any) => acc + curr.value, 0).toString(), icon: FileWarning, color: "text-destructive", bg: "bg-destructive/10" },
-          { title: "Active Students", value: "2,450", icon: Users, color: "text-blue-400", bg: "bg-blue-400/10" },
+          { title: "Active Students", value: (stats.totalStudents ?? 0).toString(), icon: Users, color: "text-blue-400", bg: "bg-blue-400/10" },
         ].map((stat, i) => (
           <motion.div
             key={i}
@@ -69,8 +69,8 @@ export default function Dashboard() {
               <stat.icon className="w-7 h-7" />
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground mb-1">{stat.title}</p>
-              <h3 className="text-3xl font-display font-bold text-white">{stat.value}</h3>
+              <p className="text-sm font-medium text-slate-500 mb-1">{stat.title}</p>
+              <h3 className="text-3xl font-display font-bold text-slate-900">{stat.value}</h3>
             </div>
           </motion.div>
         ))}
@@ -79,25 +79,25 @@ export default function Dashboard() {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Branch-wise Backlogs */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3 }}
           className="glass-panel p-6 rounded-2xl"
         >
-          <h3 className="text-lg font-display font-semibold text-white mb-6 flex items-center gap-2">
+          <h3 className="text-lg font-display font-semibold text-slate-900 mb-6 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-primary" />
             Branch-wise Backlogs
           </h3>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.branchWiseBacklogs} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)', fontSize: 12}} axisLine={false} tickLine={false} />
-                <YAxis stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)', fontSize: 12}} axisLine={false} tickLine={false} />
-                <Tooltip 
-                  cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                  contentStyle={{ backgroundColor: 'hsl(222, 47%, 9%)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                <XAxis dataKey="name" stroke="rgba(0,0,0,0.4)" tick={{ fill: 'rgba(0,0,0,0.6)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis stroke="rgba(0,0,0,0.4)" tick={{ fill: 'rgba(0,0,0,0.6)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px', color: '#0f172a' }}
                 />
                 <Bar dataKey="value" fill="hsl(43, 96%, 56%)" radius={[6, 6, 0, 0]} barSize={40} />
               </BarChart>
@@ -106,13 +106,13 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Pass vs Fail Ratio */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
           className="glass-panel p-6 rounded-2xl flex flex-col"
         >
-          <h3 className="text-lg font-display font-semibold text-white mb-2 flex items-center gap-2">
+          <h3 className="text-lg font-display font-semibold text-slate-900 mb-2 flex items-center gap-2">
             <Award className="w-5 h-5 text-primary" />
             Overall Results Distribution
           </h3>
@@ -133,17 +133,17 @@ export default function Dashboard() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(222, 47%, 9%)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px', color: '#0f172a' }}
                   formatter={(value: number) => [`${value.toFixed(1)}%`, 'Percentage']}
                 />
-                <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ color: '#475569' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-[-20px]">
               <div className="text-center">
-                <span className="block text-3xl font-display font-bold text-white">{stats.passPercentage.toFixed(0)}%</span>
-                <span className="block text-xs text-muted-foreground uppercase tracking-widest">Passed</span>
+                <span className="block text-3xl font-display font-bold text-slate-900">{stats.passPercentage.toFixed(0)}%</span>
+                <span className="block text-xs text-slate-500 uppercase tracking-widest">Passed</span>
               </div>
             </div>
           </div>

@@ -5,11 +5,11 @@ import { useLocation } from "wouter";
 export async function authFetch(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("auth_token");
   const headers = new Headers(options.headers);
-  
+
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  
+
   if (!options.body || typeof options.body === 'string') {
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json");
@@ -17,16 +17,19 @@ export async function authFetch(url: string, options: RequestInit = {}) {
   }
 
   const res = await fetch(url, { ...options, headers });
-  
+
   if (!res.ok) {
     if (res.status === 401) {
       localStorage.removeItem("auth_token");
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+        return new Promise(() => { }); // Suspend forever to prevent errors before redirect
+      }
     }
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(errorData.message || "An error occurred");
   }
-  
+
   return res.json();
 }
 
@@ -42,18 +45,18 @@ export function useAuth() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
+    mutationFn: async (credentials: { username: string; password: string }) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: "Login failed" }));
         throw new Error(errorData.message || "Invalid credentials");
       }
-      
+
       return res.json();
     },
     onSuccess: (data) => {
@@ -65,7 +68,7 @@ export function useAuth() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await authFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      await authFetch("/api/auth/logout", { method: "POST" }).catch(() => { });
     },
     onSettled: () => {
       localStorage.removeItem("auth_token");
