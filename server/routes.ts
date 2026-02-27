@@ -221,7 +221,8 @@ export async function registerRoutes(
 
   app.get('/api/students', requireAuth, async (req, res) => {
     const query = req.query.query as string | undefined;
-    const students = await storage.searchStudents(query);
+    const page = req.query.page ? parseInt(req.query.page as string) : 1;
+    const students = await storage.searchStudents(query, page);
     res.json(students);
   });
 

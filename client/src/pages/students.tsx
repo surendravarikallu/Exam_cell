@@ -20,7 +20,16 @@ function useLocalDebounce<T>(value: T, delay: number): T {
 export default function Students() {
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useLocalDebounce(searchInput, 500);
-  const { data: students, isLoading } = useStudentsSearch(debouncedSearch);
+  const [page, setPage] = useState(1);
+
+  // Reset page when searching
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data: studentsResponse, isLoading } = useStudentsSearch(debouncedSearch, page);
+  const students = studentsResponse?.data || [];
+  const totalPages = studentsResponse?.totalPages || 1;
 
   return (
     <div className="space-y-8">
@@ -107,6 +116,31 @@ export default function Students() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!isLoading && students.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 bg-white border-t border-slate-200">
+            <span className="text-sm text-slate-500">
+              Showing page {page} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

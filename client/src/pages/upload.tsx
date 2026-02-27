@@ -20,7 +20,7 @@ export default function UploadResults() {
   const [examYear, setExamYear] = useState(new Date().getFullYear().toString());
   const [semester, setSemester] = useState("I");
   const [branch, setBranch] = useState("ALL");
-  const [batch, setBatch] = useState(new Date().getFullYear().toString());
+  const [batch, setBatch] = useState(`${new Date().getFullYear()}-${new Date().getFullYear() + 4}`);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -221,6 +221,17 @@ export default function UploadResults() {
                   <option value="CIVIL">Civil</option>
                   <option value="CSE(AIML)">CSE(AIML)</option>
                   <option value="CSE(DS)">CSE(DS)</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Batch</label>
+                <select
+                  value={batch}
+                  onChange={(e) => setBatch(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none font-medium"
+                >
+                  {Array.from({ length: 15 }, (_, i) => { const y = 2015 + i; return <option key={y} value={`${y}-${y + 4}`}>{`${y}-${y + 4}`}</option>; }).reverse()}
                 </select>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { admins, students, subjects, results, type Admin, type InsertAdmin, type Student, type InsertStudent, type Subject, type InsertSubject, type Result, type InsertResult, type StudentDetails } from "@shared/schema";
-import { eq, and, desc, sql, ilike, inArray, or } from "drizzle-orm";
+import { eq, and, desc, asc, sql, ilike, inArray, or } from "drizzle-orm";
 
 export interface IStorage {
   getAdminByUsername(username: string): Promise<Admin | undefined>;
@@ -10,7 +10,7 @@ export interface IStorage {
   deleteAdmin(id: number): Promise<boolean>;
   getStudentByRoll(rollNumber: string): Promise<Student | undefined>;
   getStudent(id: number): Promise<StudentDetails | undefined>;
-  searchStudents(query?: string): Promise<Student[]>;
+  searchStudents(query?: string, page?: number, limit?: number): Promise<{ data: Student[], total: number, page: number, totalPages: number }>;
   processResultsUpload(resultsData: any[], metadata: any): Promise<{ processed: number, skipped: number, errors: string[] }>;
   processStudentsUpload(studentsData: any[]): Promise<{ processed: number, errors: string[] }>;
   getBacklogs(filters?: any): Promise<any[]>;
@@ -52,13 +52,32 @@ export class DatabaseStorage implements IStorage {
     return student;
   }
 
-  async searchStudents(query?: string): Promise<Student[]> {
-    if (!query) {
-      return await db.select().from(students).limit(50);
+  async searchStudents(query?: string, page: number = 1, limit: number = 50): Promise<{ data: Student[], total: number, page: number, totalPages: number }> {
+    const offset = (page - 1) * limit;
+
+    let conditions = undefined;
+    if (query) {
+      conditions = sql`${students.rollNumber} ILIKE ${'%' + query + '%'} OR ${students.name} ILIKE ${'%' + query + '%'}`;
     }
-    return await db.select().from(students).where(
-      sql`${students.rollNumber} ILIKE ${'%' + query + '%'} OR ${students.name} ILIKE ${'%' + query + '%'}`
-    ).limit(50);
+
+    const baseQuery = db.select().from(students);
+    const countQuery = db.select({ count: sql<number>`cast(count(${students.id}) as int)` }).from(students);
+
+    if (conditions) {
+      baseQuery.where(conditions);
+      countQuery.where(conditions);
+    }
+
+    // Enforce ascending order as requested
+    const data = await baseQuery.orderBy(asc(students.rollNumber)).limit(limit).offset(offset);
+    const [{ count }] = await countQuery;
+
+    return {
+      data,
+      total: count,
+      page,
+      totalPages: Math.ceil(count / limit) || 1
+    };
   }
 
   async getStudent(id: number): Promise<StudentDetails | undefined> {

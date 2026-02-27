@@ -100,7 +100,12 @@ export const api = {
         query: z.string(), // Roll number or name
       }).optional(),
       responses: {
-        200: z.array(z.any()), // Student list
+        200: z.object({
+          data: z.array(z.any()),
+          total: z.number(),
+          page: z.number(),
+          totalPages: z.number()
+        }),
       },
     },
     get: {
