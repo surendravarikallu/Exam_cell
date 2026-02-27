@@ -1,24 +1,34 @@
-import { db } from './server/db';
-import { results, subjects, students } from './shared/schema';
+import "dotenv/config";
+import { db, pool } from "./server/db";
+import { results, students, subjects } from "./shared/schema";
+import { sql } from "drizzle-orm";
 
-async function flush() {
-    console.log('Initiating database flush...');
+async function main() {
+    try {
+        console.log("Flushing database...");
 
-    // Results depends on subjects and students, delete first
-    console.log('Clearing results table...');
-    await db.delete(results);
+        // Delete data from tables (respecting foreign key constraints)
+        await db.delete(results);
+        console.log("✅ Cleared results table");
 
-    console.log('Clearing subjects table...');
-    await db.delete(subjects);
+        await db.delete(students);
+        console.log("✅ Cleared students table");
 
-    console.log('Clearing students table...');
-    await db.delete(students);
+        await db.delete(subjects);
+        console.log("✅ Cleared subjects table");
 
-    console.log('Database successfully flushed (Users excluded).');
-    process.exit(0);
+        // Optional: Reset auto-increment sequences
+        await db.execute(sql`ALTER SEQUENCE results_id_seq RESTART WITH 1`);
+        await db.execute(sql`ALTER SEQUENCE students_id_seq RESTART WITH 1`);
+        await db.execute(sql`ALTER SEQUENCE subjects_id_seq RESTART WITH 1`);
+        console.log("✅ Reset ID sequences");
+
+        console.log("🎉 Database successfully flushed! (Admins table was kept intact)");
+        process.exit(0);
+    } catch (e) {
+        console.error("Error flushing database:", e);
+        process.exit(1);
+    }
 }
 
-flush().catch(err => {
-    console.error(err);
-    process.exit(1);
-});
+main().finally(() => pool.end());
