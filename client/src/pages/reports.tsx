@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { pdf } from "@react-pdf/renderer";
+import { TranscriptDocument } from "@/components/pdf/TranscriptDocument";
 import { formatSemester } from "@/lib/utils";
 
 // Helper for generating PDF headers
@@ -260,6 +262,46 @@ export default function Reports() {
     } catch (err) { console.error(err); alert("Failed"); } finally { setIsGeneratingPdf(false); }
   };
 
+  // --- EXPORT logic for BULK TRANSCRIPTS ---
+  const exportBulkTranscripts = async () => {
+    if (!branch || !batch) {
+      alert("Please select both Branch and Batch to export transcripts.");
+      return;
+    }
+    try {
+      setIsGeneratingPdf(true);
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/reports/batch-transcripts?branch=${branch}&batch=${batch}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!res.ok) throw new Error("Failed to fetch transcripts");
+      const studentsDataRaw = await res.json();
+
+      if (!studentsDataRaw || studentsDataRaw.length === 0) {
+        alert("No students found for this branch and batch.");
+        return;
+      }
+
+      const formattedData = studentsDataRaw.map((s: any) => ({
+        student: s,
+        results: s.results || []
+      }));
+
+      const blob = await pdf(<TranscriptDocument studentsData={formattedData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Bulk_Transcripts_${branch}_${batch}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate bulk transcripts PDF");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
 
   // Custom Selectors
   const BranchSelector = () => (
@@ -299,6 +341,7 @@ export default function Reports() {
         <option value="backlogs">Backlogs Report</option>
         <option value="cumulative">Cumulative Result Report</option>
         <option value="toppers">Semester & Year-wise Toppers List</option>
+        <option value="transcripts">Bulk Batch Transcripts</option>
       </select>
     </div>
   );
@@ -539,6 +582,35 @@ export default function Reports() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* --- BULK TRANSCRIPTS TAB --- */}
+        {activeReport === "transcripts" && (
+          <div className="mt-0 outline-none space-y-6">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row gap-4 items-end flex-wrap">
+              <BranchSelector />
+              <BatchSelector />
+              <ReportTypeSelector />
+
+              <div className="flex gap-2 w-full md:w-auto mt-4 md:mt-0">
+                <button
+                  onClick={exportBulkTranscripts}
+                  disabled={isGeneratingPdf || !branch || !batch}
+                  className="flex-1 md:flex-none px-6 py-2.5 rounded-xl font-medium bg-indigo-600 text-white shadow-sm hover:opacity-90 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                >
+                  {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} Download Transcripts PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="glass-panel rounded-2xl overflow-hidden p-16 text-center">
+              <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Automated Batch Transcripts</h3>
+              <p className="text-slate-500 max-w-md mx-auto">
+                Select a Branch and Batch to automatically generate a multi-page PDF document containing the full academic transcript for every student matching the criteria, formatted perfectly to the official Autonomous template.
+              </p>
             </div>
           </div>
         )}

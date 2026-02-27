@@ -141,6 +141,17 @@ export const api = {
         200: z.array(z.any()), // Cumulative backlog student details
       },
     },
+    batchTranscripts: {
+      method: 'GET' as const,
+      path: '/api/reports/batch-transcripts' as const,
+      input: z.object({
+        branch: z.string(),
+        batch: z.string(),
+      }).optional(),
+      responses: {
+        200: z.array(z.any()), // StudentDetails array
+      },
+    },
     cumulativeResults: {
       method: 'GET' as const,
       path: '/api/reports/cumulative-results' as const,

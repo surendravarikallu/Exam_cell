@@ -1,7 +1,9 @@
 import React from "react";
 import { useParams, Link } from "wouter";
 import { useStudentDetails } from "@/hooks/use-students";
-import { Loader2, GraduationCap, Award, BookOpen, AlertCircle, ArrowLeft } from "lucide-react";
+import { Loader2, GraduationCap, Award, BookOpen, AlertCircle, ArrowLeft, FileText } from "lucide-react";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import { TranscriptDocument } from "@/components/pdf/TranscriptDocument";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
@@ -55,14 +57,26 @@ export default function StudentProfile() {
           </div>
 
           <div className="flex gap-4 z-10">
-            <div className="text-center px-6 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
+            <div className="text-center px-6 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-center">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-semibold">Overall CGPA</p>
               <p className="text-2xl font-display font-bold text-primary">{student.cgpa?.toFixed(2) || "N/A"}</p>
             </div>
-            <div className="text-center px-6 py-3 rounded-2xl bg-destructive/5 border border-destructive/20 shadow-sm">
+            <div className="text-center px-6 py-3 rounded-2xl bg-destructive/5 border border-destructive/20 shadow-sm flex flex-col justify-center">
               <p className="text-xs text-destructive uppercase tracking-wider mb-1 font-semibold">Backlogs</p>
               <p className="text-2xl font-display font-bold text-destructive">{student.backlogCount || 0}</p>
             </div>
+            <PDFDownloadLink
+              document={<TranscriptDocument studentsData={[{ student: student, results: student.results || [] }]} />}
+              fileName={`${student.rollNumber}_Transcript.pdf`}
+              className="px-6 py-3 rounded-2xl bg-slate-900 text-white shadow-sm flex flex-col items-center justify-center gap-1 hover:bg-slate-800 transition-colors border border-slate-900"
+            >
+              {({ loading }) => (
+                <>
+                  <FileText className="w-6 h-6" />
+                  <span className="text-xs font-semibold whitespace-nowrap">{loading ? 'Preparing...' : 'Download PDF'}</span>
+                </>
+              )}
+            </PDFDownloadLink>
           </div>
         </div>
       </motion.div>
@@ -184,24 +198,7 @@ export default function StudentProfile() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-100/70 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                <th className="p-3 pl-4">SNo</th>
-                <th className="p-3">Exam Code</th>
-                <th className="p-3 min-w-[180px]">Subject</th>
-                <th className="p-3 text-center">Regular</th>
-                <th className="p-3 text-center">Supp1</th>
-                <th className="p-3 text-center">Supp2</th>
-                <th className="p-3 text-center">Supp3</th>
-                <th className="p-3 text-center">Supp4</th>
-                <th className="p-3 text-center">Supp5</th>
-                <th className="p-3 text-center">Supp6</th>
-                <th className="p-3 text-center">Supp7</th>
-                <th className="p-3 text-center">Supp8</th>
-                <th className="p-3 text-center font-bold text-slate-700">Grade</th>
-                <th className="p-3 pr-4 text-center">Credits</th>
-              </tr>
-            </thead>
+            {/* Headers moved inside the loop per semester */}
             <tbody>
               {student.results && student.results.length > 0 ? (() => {
                 // Group results by semester, then by subjectCode
@@ -214,8 +211,8 @@ export default function StudentProfile() {
                   semesterMap[sem][code].push(r);
                 }
 
-                let globalSno = 0;
                 return Object.entries(semesterMap).map(([semester, subjectMap]) => {
+                  let localSno = 0;
                   const subjectEntries = Object.entries(subjectMap);
                   return (
                     <React.Fragment key={semester}>
@@ -228,8 +225,25 @@ export default function StudentProfile() {
                           {formatSemester(semester)}
                         </td>
                       </tr>
+                      {/* Repeat headers for this semester */}
+                      <tr className="border-b border-slate-200 bg-slate-100/70 text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        <th className="p-2 sm:p-3 pl-4 text-left">SNo</th>
+                        <th className="p-2 sm:p-3 text-left">Exam Code</th>
+                        <th className="p-2 sm:p-3 min-w-[180px] text-left">Subject</th>
+                        <th className="p-2 sm:p-3 text-center">Regular</th>
+                        <th className="p-2 sm:p-3 text-center">Supp1</th>
+                        <th className="p-2 sm:p-3 text-center">Supp2</th>
+                        <th className="p-2 sm:p-3 text-center">Supp3</th>
+                        <th className="p-2 sm:p-3 text-center">Supp4</th>
+                        <th className="p-2 sm:p-3 text-center">Supp5</th>
+                        <th className="p-2 sm:p-3 text-center">Supp6</th>
+                        <th className="p-2 sm:p-3 text-center">Supp7</th>
+                        <th className="p-2 sm:p-3 text-center">Supp8</th>
+                        <th className="p-2 sm:p-3 text-center font-bold text-slate-800">Grade</th>
+                        <th className="p-2 sm:p-3 pr-4 text-center">Credits</th>
+                      </tr>
                       {subjectEntries.map(([code, attempts]) => {
-                        globalSno++;
+                        localSno++;
                         // Sort all attempts by attemptNo
                         const sorted = [...attempts].sort((a, b) => a.attemptNo - b.attemptNo);
 
@@ -256,7 +270,7 @@ export default function StudentProfile() {
                             key={code}
                             className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors"
                           >
-                            <td className="p-3 pl-4 text-slate-500 tabular-nums">{globalSno}</td>
+                            <td className="p-3 pl-4 text-slate-500 tabular-nums">{localSno}</td>
                             <td className="p-3 font-mono text-xs text-slate-700">{code}</td>
                             <td className="p-3 text-slate-900 font-medium leading-snug">
                               {latest?.subject?.subjectName || "—"}

@@ -252,6 +252,15 @@ export async function registerRoutes(
     res.json(results);
   });
 
+  app.get(api.reports.batchTranscripts.path, requireAuth, async (req, res) => {
+    const { branch, batch } = req.query;
+    if (!branch || !batch) {
+      return res.status(400).json({ message: "Branch and Batch are required" });
+    }
+    const transcripts = await storage.getBatchTranscripts(branch as string, batch as string);
+    res.json(transcripts);
+  });
+
   app.get(api.reports.toppers.path, requireAuth, async (req, res) => {
     const { branch, batch, type, semester, year, topN } = req.query;
     if (!type) {

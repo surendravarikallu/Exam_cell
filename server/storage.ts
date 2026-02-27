@@ -10,6 +10,7 @@ export interface IStorage {
   deleteAdmin(id: number): Promise<boolean>;
   getStudentByRoll(rollNumber: string): Promise<Student | undefined>;
   getStudent(id: number): Promise<StudentDetails | undefined>;
+  getBatchTranscripts(branch: string, batch: string): Promise<StudentDetails[]>;
   searchStudents(query?: string, page?: number, limit?: number): Promise<{ data: Student[], total: number, page: number, totalPages: number }>;
   processResultsUpload(resultsData: any[], metadata: any): Promise<{ processed: number, skipped: number, errors: string[] }>;
   processStudentsUpload(studentsData: any[]): Promise<{ processed: number, errors: string[] }>;
@@ -78,6 +79,17 @@ export class DatabaseStorage implements IStorage {
       page,
       totalPages: Math.ceil(count / limit) || 1
     };
+  }
+
+  async getBatchTranscripts(branch: string, batch: string): Promise<StudentDetails[]> {
+    const batchStudents = await db.select().from(students)
+      .where(and(eq(students.branch, branch), eq(students.batch, batch)))
+      .orderBy(asc(students.rollNumber));
+
+    if (batchStudents.length === 0) return [];
+
+    const hydrated = await Promise.all(batchStudents.map(s => this.getStudent(s.id)));
+    return hydrated.filter((s): s is StudentDetails => s !== undefined);
   }
 
   async getStudent(id: number): Promise<StudentDetails | undefined> {
