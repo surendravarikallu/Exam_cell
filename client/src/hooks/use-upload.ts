@@ -43,6 +43,28 @@ export function useUploadResults() {
   });
 }
 
+export function useUploadPreview() {
+  const { toast } = useToast();
+  // We can just utilize a standard mutation for the preview API
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("/api/upload/preview", {
+        method: "POST",
+        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: "Preview failed" }));
+        throw new Error(errorData.message || "Failed to generate preview");
+      }
+
+      return res.json();
+    }
+  });
+}
+
 export function useUploadStudents() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -11,7 +11,7 @@ export interface IStorage {
   getStudentByRoll(rollNumber: string): Promise<Student | undefined>;
   getStudent(id: number): Promise<StudentDetails | undefined>;
   searchStudents(query?: string): Promise<Student[]>;
-  processResultsUpload(resultsData: any[], metadata: any): Promise<{ processed: number, errors: string[] }>;
+  processResultsUpload(resultsData: any[], metadata: any): Promise<{ processed: number, skipped: number, errors: string[] }>;
   processStudentsUpload(studentsData: any[]): Promise<{ processed: number, errors: string[] }>;
   getBacklogs(filters?: any): Promise<any[]>;
   getCumulativeBacklogs(filters?: any): Promise<any[]>;
@@ -133,16 +133,35 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async processResultsUpload(resultsData: any[], metadata: { examType: string, academicYear: string, semester: string, branch: string, regulation: string }): Promise<{ processed: number, errors: string[] }> {
+  async processResultsUpload(resultsData: any[], metadata: { examType: string, academicYear: string, semester: string, branch: string, batch: string, regulation: string }): Promise<{ processed: number, skipped: number, errors: string[] }> {
     let processed = 0;
+    let skipped = 0;
     let errors: string[] = [];
 
+    // 0. Filter by active Batch using Roll Number prefix
+    // E.g., batch "2023" means roll numbers start with "23"
+    let targetPrefix = "";
+    if (metadata.batch && metadata.batch.length >= 4) {
+      targetPrefix = metadata.batch.substring(2, 4); // "2023" -> "23"
+    }
+
+    const validResultsData = targetPrefix ? resultsData.filter(r => {
+      const rollStr = (r.RollNumber || "").toString().trim();
+      return rollStr.startsWith(targetPrefix);
+    }) : resultsData;
+
+    skipped = resultsData.length - validResultsData.length;
+
+    if (validResultsData.length === 0) {
+      return { processed: 0, skipped, errors: ["No records matched the selected batch prefix."] };
+    }
+
     // 1. Get unique rolls and subjects
-    const uniqueRolls = Array.from(new Set(resultsData.map(r => r.RollNumber).filter(Boolean)));
-    const uniqueSubjects = Array.from(new Set(resultsData.map(r => r.SubjectCode).filter(Boolean)));
+    const uniqueRolls = Array.from(new Set(validResultsData.map(r => r.RollNumber).filter(Boolean)));
+    const uniqueSubjects = Array.from(new Set(validResultsData.map(r => r.SubjectCode).filter(Boolean)));
 
     if (uniqueRolls.length === 0 || uniqueSubjects.length === 0) {
-      return { processed: 0, errors: ["No valid records found in data."] };
+      return { processed: 0, skipped, errors: ["No valid records found in data."] };
     }
 
     // 2. Fetch existing students
@@ -198,7 +217,7 @@ export class DatabaseStorage implements IStorage {
     const missingSubjectsData = [];
     for (const c of uniqueSubjects) {
       if (!subjectMap.has(c)) {
-        const row = resultsData.find(x => x.SubjectCode === c);
+        const row = validResultsData.find(x => x.SubjectCode === c);
         missingSubjectsData.push({
           subjectCode: c,
           subjectName: row?.SubjectName || 'Unknown Subject',
@@ -225,7 +244,7 @@ export class DatabaseStorage implements IStorage {
     // 5.5 Auto-heal truncated subject names and missing credits
     const subjectsToUpdateName = new Map();
     const subjectsToUpdateCredits = new Map();
-    for (const r of resultsData) {
+    for (const r of validResultsData) {
       const s = subjectMap.get(r.SubjectCode);
       if (s) {
         if (r.SubjectName && r.SubjectName !== "Unknown Subject" && s.subjectName !== r.SubjectName) {
@@ -280,7 +299,7 @@ export class DatabaseStorage implements IStorage {
     const resultUpdatesForRevaluation: { id: number, grade: string, gradePoints: number, creditsEarned: number, status: string }[] = [];
 
     // 7. Prepare results data sequentially in memory
-    for (const row of resultsData) {
+    for (const row of validResultsData) {
       try {
         if (!row.RollNumber || !row.SubjectCode) continue;
 
@@ -308,10 +327,17 @@ export class DatabaseStorage implements IStorage {
         }
         // All other valid grades (O, A+, A, B+, B, C, D, E, S) = PASS
 
-        // ── REVALUATION: update existing attempt in-place (no new attempt slot) ──
-        if (metadata.examType === 'REVALUATION') {
-          // Find the most recent non-revaluation attempt to update
-          const targetAttempt = previousAttempts.find(a => a.examType !== 'REVALUATION');
+        // ── REGULAR_REVALUATION / SUPPLY_REVALUATION update existing attempts in-place ──
+        if (metadata.examType === 'REGULAR_REVALUATION' || metadata.examType === 'SUPPLY_REVALUATION') {
+          // Find the most recent applicable attempt to update
+          // For REGULAR_REVALUATION: Update the REGULAR attempt
+          // For SUPPLY_REVALUATION: Update the latest SUPPLY attempt
+          const targetType = metadata.examType === 'REGULAR_REVALUATION' ? 'REGULAR' : 'SUPPLY';
+
+          const targetAttempt = previousAttempts
+            .filter(a => a.examType === targetType)
+            .sort((a, b) => b.attemptNo - a.attemptNo)[0];
+
           if (targetAttempt && targetAttempt.id) {
             // Only update if the revaluation actually changes something
             if (targetAttempt.grade !== grade) {
@@ -345,7 +371,14 @@ export class DatabaseStorage implements IStorage {
           continue; // Skip inserting duplicate
         }
 
-        const attemptNo = previousAttempts.length > 0 ? previousAttempts[0].attemptNo + 1 : 1;
+        // Compute Attempt Number based on Exam Type rules
+        let attemptNo = 1;
+        if (metadata.examType === 'SUPPLY') {
+          // Supply is always +1 over the highest previous attempt
+          attemptNo = previousAttempts.length > 0 ? previousAttempts[0].attemptNo + 1 : 2;
+        } else if (metadata.examType === 'REGULAR') {
+          attemptNo = 1;
+        }
 
         // Determine if they already passed this subject in a prior attempt
         let alreadyPassed = false;
@@ -426,7 +459,7 @@ export class DatabaseStorage implements IStorage {
       ));
     }
 
-    return { processed, errors };
+    return { processed, skipped, errors };
   }
 
   async processStudentsUpload(studentsData: any[]): Promise<{ processed: number, errors: string[] }> {
@@ -556,31 +589,35 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    let studentRows = [];
-    if (studentConditions.length > 0) {
-      studentRows = await db.select().from(students).where(and(...studentConditions));
-    } else {
-      studentRows = await db.select().from(students);
+    const queryResult = await db.select({
+      student: students,
+      result: results,
+      subject: subjects
+    })
+      .from(students)
+      .innerJoin(results, eq(students.id, results.studentId))
+      .innerJoin(subjects, eq(results.subjectId, subjects.id))
+      .where(and(eq(results.isLatest, true), ...studentConditions));
+
+    if (queryResult.length === 0) return [];
+
+    const studentMap = new Map<number, typeof students.$inferSelect>();
+    const resultsByStudent = new Map<number, any[]>();
+
+    for (const row of queryResult) {
+      if (!studentMap.has(row.student.id)) {
+        studentMap.set(row.student.id, row.student);
+        resultsByStudent.set(row.student.id, []);
+      }
+      resultsByStudent.get(row.student.id)!.push({ ...row.result, subject: row.subject });
     }
 
-    if (studentRows.length === 0) return [];
-
-    const studentIds = studentRows.map(s => s.id);
-    const allLatestResults = await db.select().from(results).where(
-      and(eq(results.isLatest, true), inArray(results.studentId, studentIds))
-    );
-
-    const subjectIds = Array.from(new Set(allLatestResults.map(r => r.subjectId)));
-    let subjectMap = new Map();
-    if (subjectIds.length > 0) {
-      const subjectRows = await db.select().from(subjects).where(inArray(subjects.id, subjectIds));
-      subjectMap = new Map(subjectRows.map(s => [s.id, s]));
-    }
+    const studentRows = Array.from(studentMap.values());
 
     const cumulativeData = [];
 
     for (const student of studentRows) {
-      const studentResults = allLatestResults.filter(r => r.studentId === student.id);
+      const studentResults = resultsByStudent.get(student.id) || [];
 
       const semesters = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
       const semesterData: Record<string, { backlogs: string[], backlogCount: number, sgpa: number, credits: number, registeredCredits: number, totalPoints: number }> = {};
@@ -595,7 +632,7 @@ export class DatabaseStorage implements IStorage {
       let totalBacklogs = 0;
 
       for (const r of studentResults) {
-        const subj = subjectMap.get(r.subjectId);
+        const subj = r.subject;
         if (!subj) continue;
 
         const sem = r.semester;
@@ -645,6 +682,202 @@ export class DatabaseStorage implements IStorage {
     }
 
     return cumulativeData.sort((a, b) => a.student.rollNumber.localeCompare(b.student.rollNumber));
+  }
+
+  async getCumulativeResults(filters: { branch?: string; batch?: string; year?: string }): Promise<any> {
+    const studentConditions = [];
+    if (filters.branch) studentConditions.push(eq(students.branch, filters.branch));
+    if (filters.batch) studentConditions.push(eq(students.batch, filters.batch));
+
+    // Get all relevant data in one query using joins to avoid N+1 and inArray bottlenecks
+    const queryResult = await db.select({
+      student: students,
+      result: results
+    })
+      .from(students)
+      .innerJoin(results, eq(students.id, results.studentId))
+      .where(and(eq(results.isLatest, true), ...studentConditions));
+
+    if (queryResult.length === 0) return { summary: {}, passed: [], failed: [] };
+
+    const studentMap = new Map<number, typeof students.$inferSelect>();
+    const resultsByStudent = new Map<number, (typeof results.$inferSelect)[]>();
+
+    for (const row of queryResult) {
+      if (!studentMap.has(row.student.id)) {
+        studentMap.set(row.student.id, row.student);
+        resultsByStudent.set(row.student.id, []);
+      }
+      resultsByStudent.get(row.student.id)!.push(row.result);
+    }
+
+    const studentRows = Array.from(studentMap.values());
+
+    const yearMapping: Record<string, string[]> = {
+      "1st": ["I", "II"],
+      "2nd": ["III", "IV"],
+      "3rd": ["V", "VI"],
+      "4th": ["VII", "VIII"]
+    };
+
+    const targetSemesters = filters.year && filters.year !== "All"
+      ? yearMapping[filters.year] || []
+      : ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
+
+    let passedStudents = [];
+    let failedStudents = [];
+
+    // Summary per semester requested
+    const summary: Record<string, { registered: number; passed: number; failed: number }> = {};
+    targetSemesters.forEach(sem => summary[sem] = { registered: 0, passed: 0, failed: 0 });
+
+    for (const student of studentRows) {
+      const studentResults = resultsByStudent.get(student.id) || [];
+      let passedAllTargetSems = true;
+      let registeredInTarget = false;
+
+      targetSemesters.forEach(sem => {
+        const semResults = studentResults.filter(r => r.semester === sem);
+        if (semResults.length > 0) {
+          registeredInTarget = true;
+          summary[sem].registered++;
+          const hasBacklog = semResults.some(r => r.status === "BACKLOG");
+          if (hasBacklog) {
+            summary[sem].failed++;
+            passedAllTargetSems = false;
+          } else {
+            summary[sem].passed++;
+          }
+        }
+      });
+
+      if (registeredInTarget) {
+        if (passedAllTargetSems) passedStudents.push(student);
+        else failedStudents.push(student);
+      }
+    }
+
+    return {
+      summary,
+      passed: passedStudents.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber)),
+      failed: failedStudents.sort((a, b) => a.rollNumber.localeCompare(b.rollNumber))
+    };
+  }
+
+  async getToppers(filters: { branch?: string; batch?: string; type: string; semester?: string; year?: string; topN?: number }): Promise<any> {
+    const studentConditions = [];
+    if (filters.branch) studentConditions.push(eq(students.branch, filters.branch));
+    if (filters.batch) studentConditions.push(eq(students.batch, filters.batch));
+
+    const queryResult = await db.select({
+      student: students,
+      result: results,
+      subject: subjects
+    })
+      .from(students)
+      .innerJoin(results, eq(students.id, results.studentId))
+      .innerJoin(subjects, eq(results.subjectId, subjects.id))
+      .where(and(eq(results.isLatest, true), ...studentConditions));
+
+    if (queryResult.length === 0) return [];
+
+    const studentMap = new Map<number, typeof students.$inferSelect>();
+    const resultsByStudent = new Map<number, any[]>();
+
+    for (const row of queryResult) {
+      if (!studentMap.has(row.student.id)) {
+        studentMap.set(row.student.id, row.student);
+        resultsByStudent.set(row.student.id, []);
+      }
+      resultsByStudent.get(row.student.id)!.push({ ...row.result, subject: row.subject });
+    }
+
+    const studentRows = Array.from(studentMap.values());
+
+    const yearMapping: Record<string, string[]> = {
+      "1st": ["I", "II"],
+      "2nd": ["III", "IV"],
+      "3rd": ["V", "VI"],
+      "4th": ["VII", "VIII"]
+    };
+
+    const targetSemesters = filters.type === "Semester" && filters.semester
+      ? [filters.semester]
+      : filters.type === "Year" && filters.year
+        ? yearMapping[filters.year] || []
+        : [];
+
+    if (targetSemesters.length === 0) return [];
+
+    let eligibleStudents = [];
+
+    for (const student of studentRows) {
+      const studentAllResults = resultsByStudent.get(student.id) || [];
+      if (studentAllResults.length === 0) continue;
+
+      // Rule: Eligibility requires 0 active backlogs IN ANY SEMESTER
+      const hasActiveBacklog = studentAllResults.some(r => r.status === "BACKLOG");
+      if (hasActiveBacklog) continue;
+
+      const studentTargetResults = studentAllResults.filter(r => targetSemesters.includes(r.semester));
+
+      // Enforce the student has passed exams in ALL target semesters
+      // E.g., a "Yearly" topper must have cleared subjects spanning BOTH Sem I and Sem II.
+      const presentSemesters = new Set(studentTargetResults.map(r => r.semester));
+      if (presentSemesters.size < targetSemesters.length) continue;
+
+      // Toppers must clear everything in their first valid attempt (REGULAR) or REGULAR_REVALUATION.
+      // If ANY result in the target timeframe is a SUPPLY or SUPPLY_REVALUATION attempt (even if passed), they are disqualified.
+      const hasSupplyInTarget = studentTargetResults.some(r => r.examType === "SUPPLY" || r.examType === "SUPPLY_REVALUATION");
+      if (hasSupplyInTarget) continue;
+
+      let totalPoints = 0;
+      let totalRegisteredCredits = 0;
+
+      for (const r of studentTargetResults) {
+        // Enforce only regular attempts count for ranking score (just in case they slipped through)
+        if (!["REGULAR", "REGULAR_REVALUATION"].includes(r.examType)) continue;
+        const subj = r.subject;
+        if (!subj) continue;
+        const actualCredits = Math.max(subj.credits || 0, r.creditsEarned || 0);
+
+        if (actualCredits > 0) {
+          totalRegisteredCredits += actualCredits;
+          totalPoints += r.gradePoints * actualCredits;
+        }
+      }
+
+      if (totalRegisteredCredits > 0) {
+        const gpa = Number((totalPoints / totalRegisteredCredits).toFixed(2));
+        eligibleStudents.push({ ...student, gpa });
+      }
+    }
+
+    // Sort by GPA descending
+    eligibleStudents.sort((a, b) => b.gpa - a.gpa);
+
+    // Assign Ranks (handle ties)
+    const rankedStudents = [];
+    let currentRank = 1;
+    let rankOffset = 0;
+    let prevGpa = null;
+
+    for (let i = 0; i < eligibleStudents.length; i++) {
+      const s = eligibleStudents[i];
+      if (prevGpa !== null && s.gpa < prevGpa) {
+        currentRank += rankOffset;
+        rankOffset = 1;
+      } else if (prevGpa !== null && s.gpa === prevGpa) {
+        rankOffset++;
+      } else {
+        rankOffset = 1;
+      }
+      rankedStudents.push({ ...s, rank: currentRank });
+      prevGpa = s.gpa;
+    }
+
+    const topN = filters.topN || 5;
+    return rankedStudents.filter(s => s.rank <= topN);
   }
 
   async getAnalytics(): Promise<any> {

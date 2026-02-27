@@ -74,8 +74,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
-      const { examType, academicYear, semester, branch, regulation } = req.body;
-      if (!examType || !academicYear || !semester || !branch) {
+      const { examType, academicYear, semester, branch, batch, regulation } = req.body;
+      if (!examType || !academicYear || !semester || !branch || !batch) {
         return res.status(400).json({ message: 'Missing required metadata' });
       }
 
@@ -111,13 +111,78 @@ export async function registerRoutes(
       }
 
       const result = await storage.processResultsUpload(data, {
-        examType, academicYear, semester, branch, regulation: detectedRegulation
+        examType, academicYear, semester, branch, batch, regulation: detectedRegulation
       });
 
       // Cleanup temp file
       fs.unlinkSync(filePath);
 
-      res.json({ message: 'Upload processed', processed: result.processed, errors: result.errors });
+      res.json({ message: 'Upload processed', processed: result.processed, skipped: result.skipped, errors: result.errors });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post(api.upload.preview.path, requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { batch } = req.body;
+      if (!batch) {
+        return res.status(400).json({ message: 'Missing required metadata (Batch)' });
+      }
+
+      const filePath = req.file.path;
+      let data: any[] = [];
+
+      if (req.file.originalname.endsWith('.csv')) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        data = csvParse(fileContent, { columns: true, skip_empty_lines: true });
+      } else if (req.file.originalname.match(/\.xlsx?$/)) {
+        const workbook = xlsx.readFile(filePath);
+        const sheetName = workbook.SheetNames[0];
+        data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+      } else if (req.file.originalname.endsWith('.pdf')) {
+        const parserResponse = await parsePdfResults(filePath);
+        data = parserResponse.results;
+        if (data.length === 0) {
+          return res.status(400).json({ message: 'Could not extract valid result data from the provided PDF.' });
+        }
+      } else {
+        return res.status(400).json({ message: 'Unsupported file type. Use PDF, CSV or Excel.' });
+      }
+
+      // Filter logic matches storage layer
+      let targetPrefix = "";
+      if (batch && batch.length >= 4) {
+        targetPrefix = batch.substring(2, 4);
+      }
+
+      const matchedRows = [];
+      let skippedCount = 0;
+
+      for (const row of data) {
+        const rollStr = (row.RollNumber || "").toString().trim();
+        if (targetPrefix && rollStr.startsWith(targetPrefix)) {
+          matchedRows.push(row);
+        } else if (!targetPrefix) {
+          matchedRows.push(row);
+        } else {
+          skippedCount++;
+        }
+      }
+
+      // Cleanup temp file since we don't save it from preview
+      fs.unlinkSync(filePath);
+
+      res.json({
+        totalParsed: data.length,
+        matchedCount: matchedRows.length,
+        skippedCount: skippedCount,
+        previewRows: matchedRows.slice(0, 10) // Only send the first 10 for safety
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -176,8 +241,30 @@ export async function registerRoutes(
 
   app.get(api.reports.cumulative.path, requireAuth, async (req, res) => {
     const { branch, batch } = req.query;
-    const cumulative = await storage.getCumulativeBacklogs({ branch, batch });
+    const cumulative = await storage.getCumulativeBacklogs({ branch: branch as string, batch: batch as string });
     res.json(cumulative);
+  });
+
+  app.get(api.reports.cumulativeResults.path, requireAuth, async (req, res) => {
+    const { branch, batch, year } = req.query;
+    const results = await storage.getCumulativeResults({ branch: branch as string, batch: batch as string, year: year as string });
+    res.json(results);
+  });
+
+  app.get(api.reports.toppers.path, requireAuth, async (req, res) => {
+    const { branch, batch, type, semester, year, topN } = req.query;
+    if (!type) {
+      return res.status(400).json({ message: "Type is required" });
+    }
+    const results = await storage.getToppers({
+      branch: branch as string,
+      batch: batch as string,
+      type: type as string,
+      semester: semester as string,
+      year: year as string,
+      topN: topN ? parseInt(topN as string) : 5
+    });
+    res.json(results);
   });
 
   app.get(api.reports.analytics.path, requireAuth, async (req, res) => {

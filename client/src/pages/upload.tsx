@@ -1,8 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useUploadResults, useUploadStudents } from "@/hooks/use-upload";
-import { UploadCloud, FileType, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { useUploadResults, useUploadStudents, useUploadPreview } from "@/hooks/use-upload";
+import { UploadCloud, FileType, CheckCircle, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 export default function UploadResults() {
   const [file, setFile] = useState<File | null>(null);
@@ -11,11 +20,17 @@ export default function UploadResults() {
   const [examYear, setExamYear] = useState(new Date().getFullYear().toString());
   const [semester, setSemester] = useState("I");
   const [branch, setBranch] = useState("ALL");
+  const [batch, setBatch] = useState(new Date().getFullYear().toString());
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { mutateAsync: uploadPreview, isPending: isPreviewing } = useUploadPreview();
   const { mutateAsync: uploadResults, isPending: isResultsPending } = useUploadResults();
   const { mutateAsync: uploadStudents, isPending: isStudentsPending } = useUploadStudents();
+
+  // Preview Modal State
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
 
   const [timer, setTimer] = useState(0);
 
@@ -26,14 +41,14 @@ export default function UploadResults() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isResultsPending || isStudentsPending) {
+    if (isResultsPending || isStudentsPending || isPreviewing) {
       setTimer(0);
       interval = setInterval(() => {
         setTimer(t => t + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isResultsPending, isStudentsPending]);
+  }, [isResultsPending, isStudentsPending, isPreviewing]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -84,16 +99,36 @@ export default function UploadResults() {
     const monthYear = `${examMonth} ${examYear}`;
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("batch", batch);
+
+    try {
+      // 1. Fetch preview data first
+      const data = await uploadPreview(formData);
+      setPreviewData(data);
+      setShowPreviewDialog(true);
+    } catch (err) {
+      // Error handled by hook's toast
+    }
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!file) return;
+
+    const monthYear = `${examMonth} ${examYear}`;
+    const formData = new FormData();
+    formData.append("file", file);
     formData.append("examType", examType);
     formData.append("academicYear", monthYear);
     formData.append("semester", semester);
     formData.append("branch", branch);
+    formData.append("batch", batch);
 
     try {
       await uploadResults(formData);
       setFile(null); // Reset on success
+      setShowPreviewDialog(false);
     } catch (err) {
-      // Error is handled by hook's toast
+      // Error handled by hook's toast
     }
   };
 
@@ -125,9 +160,10 @@ export default function UploadResults() {
                   onChange={(e) => setExamType(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none font-medium"
                 >
-                  <option value="REGULAR">Regular</option>
-                  <option value="SUPPLY">Supplementary</option>
-                  <option value="REVALUATION">Revaluation</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="REGULAR_REVALUATION">REGULAR_REVALUATION</option>
+                  <option value="SUPPLY">SUPPLY</option>
+                  <option value="SUPPLY_REVALUATION">SUPPLY_REVALUATION</option>
                 </select>
               </div>
 
@@ -183,6 +219,8 @@ export default function UploadResults() {
                   <option value="EEE">EEE</option>
                   <option value="MECH">Mechanical</option>
                   <option value="CIVIL">Civil</option>
+                  <option value="CSE(AIML)">CSE(AIML)</option>
+                  <option value="CSE(DS)">CSE(DS)</option>
                 </select>
               </div>
             </div>
@@ -252,20 +290,19 @@ export default function UploadResults() {
             <div className="pt-4 flex justify-end">
               <button
                 type="submit"
-                disabled={!file || isResultsPending}
-                className={`px-8 py-3.5 rounded-xl font-bold text-lg bg-primary text-white shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 ${isResultsPending ? 'opacity-80 cursor-wait transform-none' : 'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'}`}
+                disabled={!file || isPreviewing}
+                className={`px-8 py-3.5 rounded-xl font-bold text-lg bg-primary text-white shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2 ${isPreviewing ? 'opacity-80 cursor-wait transform-none' : 'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none'}`}
               >
-                {isResultsPending ? (
+                {isPreviewing ? (
                   <div className="flex flex-col items-center">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing ({timer}s)...
+                      Generating Preview...
                     </div>
-                    <span className="text-xs font-normal text-white/80 mt-1">This may take up to 20 seconds for large files</span>
                   </div>
                 ) : (
                   <>
-                    Upload & Process Results
+                    Preview & Upload
                   </>
                 )}
               </button>
@@ -379,6 +416,117 @@ export default function UploadResults() {
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      {/* Smart Preview Confirmation Modal */}
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-display text-slate-900">Upload Preview</DialogTitle>
+            <DialogDescription>
+              Review the processed results before committing them to the database.
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewData && (
+            <div className="mt-4 flex-1 overflow-auto space-y-6 px-1">
+              {/* Summary Stats Widget */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
+                  <p className="text-sm font-medium text-slate-500 mb-1">Total Parsed</p>
+                  <p className="text-3xl font-display font-bold text-slate-800">{previewData.totalParsed}</p>
+                </div>
+                <div className="bg-primary/10 border border-primary/20 p-4 rounded-xl text-center">
+                  <p className="text-sm font-medium text-primary mb-1">Row Matches (To Save)</p>
+                  <p className="text-3xl font-display font-bold text-primary">{previewData.matchedCount}</p>
+                </div>
+                <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl text-center">
+                  <p className="text-sm font-medium text-destructive mb-1">Rows Skipped</p>
+                  <p className="text-3xl font-display font-bold text-destructive">{previewData.skippedCount}</p>
+                </div>
+              </div>
+
+              {previewData.skippedCount > previewData.matchedCount && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-amber-800">High Skipped Row Count</h4>
+                    <p className="text-sm text-amber-700 mt-1">
+                      The parser skipped more rows than it matched. The uploaded file likely contains data across multiple batches. Only rows prefixed with <span className="font-bold">'{batch.substring(2, 4)}'</span> will be saved for this Batch ({batch}).
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Preview Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-800">First 10 Matched Rows Data</h3>
+                  <span className="text-xs font-medium px-2.5 py-1 bg-white border border-slate-200 rounded-md text-slate-600 shadow-sm">
+                    {examType} • {semester}
+                  </span>
+                </div>
+                {previewData.previewRows && previewData.previewRows.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-100/50 text-slate-500 uppercase text-xs tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3 font-medium">Roll No</th>
+                          <th className="px-4 py-3 font-medium">Sub Code</th>
+                          <th className="px-4 py-3 font-medium">Sub Name</th>
+                          <th className="px-4 py-3 font-medium text-center">Cr</th>
+                          <th className="px-4 py-3 font-medium text-center">Gr</th>
+                          <th className="px-4 py-3 font-medium text-center">Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {previewData.previewRows.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-4 py-3 font-medium text-slate-900">{row.RollNumber}</td>
+                            <td className="px-4 py-3 font-mono text-slate-600 text-xs">{row.SubjectCode}</td>
+                            <td className="px-4 py-3 text-slate-700 truncate max-w-xs">{row.SubjectName}</td>
+                            <td className="px-4 py-3 text-center text-slate-600">{row.Credits}</td>
+                            <td className="px-4 py-3 text-center font-bold text-slate-800">{row.Grade}</td>
+                            <td className="px-4 py-3 text-center text-slate-600">{row.GradePoints}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-500">
+                    No data matched the selected Batch criteria.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-6 border-t border-slate-100 pt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreviewDialog(false)}
+              disabled={isResultsPending}
+              className="mr-2"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUpload}
+              disabled={isResultsPending || (previewData && previewData.matchedCount === 0)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white"
+            >
+              {isResultsPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving ({timer}s)...
+                </>
+              ) : (
+                <>Confirm & Save Results</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

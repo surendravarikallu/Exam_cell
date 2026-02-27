@@ -61,7 +61,22 @@ export const api = {
         200: z.object({
           message: z.string(),
           processed: z.number(),
+          skipped: z.number(),
           errors: z.array(z.string()).optional(),
+        }),
+        400: errorSchemas.validation,
+      },
+    },
+    preview: {
+      method: 'POST' as const,
+      path: '/api/upload/preview' as const,
+      // Input is multipart/form-data
+      responses: {
+        200: z.object({
+          totalParsed: z.number(),
+          matchedCount: z.number(),
+          skippedCount: z.number(),
+          previewRows: z.array(z.any()),
         }),
         400: errorSchemas.validation,
       },
@@ -119,6 +134,33 @@ export const api = {
       }).optional(),
       responses: {
         200: z.array(z.any()), // Cumulative backlog student details
+      },
+    },
+    cumulativeResults: {
+      method: 'GET' as const,
+      path: '/api/reports/cumulative-results' as const,
+      input: z.object({
+        branch: z.string().optional(),
+        batch: z.string().optional(),
+        year: z.string().optional(),
+      }).optional(),
+      responses: {
+        200: z.any(), // Summary, Passed List, Failed List
+      },
+    },
+    toppers: {
+      method: 'GET' as const,
+      path: '/api/reports/toppers' as const,
+      input: z.object({
+        branch: z.string().optional(),
+        batch: z.string().optional(),
+        type: z.string(), // "Semester" | "Year"
+        semester: z.string().optional(),
+        year: z.string().optional(),
+        topN: z.number().optional(),
+      }).optional(),
+      responses: {
+        200: z.array(z.any()), // Top students ranking list
       },
     },
     analytics: {

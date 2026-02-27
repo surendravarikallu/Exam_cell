@@ -243,8 +243,8 @@ export default function StudentProfile() {
                         );
 
                         // Slot-based lookup: idx 0 = Regular, idx 1 = Supp1 ... idx 8 = Supp8
-                        const gradeForSlot = (idx: number): string => {
-                          return realAttempts[idx]?.grade ?? "";
+                        const attemptForSlot = (idx: number) => {
+                          return realAttempts[idx] || null;
                         };
 
                         // Use last real attempt for final Grade/Credits/Status
@@ -264,20 +264,30 @@ export default function StudentProfile() {
                             {/* Regular = slot 0 */}
                             <td className="p-3 text-center">
                               {(() => {
-                                const g = gradeForSlot(0);
-                                return g
-                                  ? <span className={g === 'F' ? 'text-destructive font-medium' : 'text-slate-700'}>{g}</span>
-                                  : <span className="text-slate-200">—</span>;
+                                const a = attemptForSlot(0);
+                                if (!a) return <span className="text-slate-200">—</span>;
+                                const g = a.grade;
+                                const isFail = g === 'F';
+                                return (
+                                  <div className="flex flex-col items-center">
+                                    <span className={isFail ? 'text-destructive font-bold' : 'text-slate-700 font-medium'}>{g}</span>
+                                    <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
+                                  </div>
+                                );
                               })()}
                             </td>
                             {/* Supp1–Supp8 = slots 1–8 */}
                             {[1, 2, 3, 4, 5, 6, 7, 8].map((slotIdx) => {
-                              const g = gradeForSlot(slotIdx);
+                              const a = attemptForSlot(slotIdx);
+                              if (!a) return <td key={slotIdx} className="p-3 text-center"><span className="text-slate-200">—</span></td>;
+                              const g = a.grade;
+                              const isFail = g === 'F';
                               return (
                                 <td key={slotIdx} className="p-3 text-center">
-                                  {g
-                                    ? <span className={g === 'F' ? 'text-destructive font-medium' : 'text-slate-600'}>{g}</span>
-                                    : <span className="text-slate-200">—</span>}
+                                  <div className="flex flex-col items-center">
+                                    <span className={isFail ? 'text-destructive font-bold' : 'text-slate-600 font-medium'}>{g}</span>
+                                    <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
+                                  </div>
                                 </td>
                               );
                             })}

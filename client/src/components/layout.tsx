@@ -8,7 +8,8 @@ import {
   UploadCloud,
   LogOut,
   Loader2,
-  Settings
+  Settings,
+  FileText
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { CollegeHeader } from "@/components/college-header";
@@ -16,7 +17,7 @@ import { CollegeHeader } from "@/components/college-header";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
-  { href: "/reports", label: "Backlogs", icon: FileWarning },
+  { href: "/reports", label: "Academic Reports", icon: FileText },
   { href: "/upload", label: "Data Upload", icon: UploadCloud },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

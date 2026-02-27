@@ -28,6 +28,8 @@ export default function Dashboard() {
       { name: "EEE", value: 112 },
       { name: "MECH", value: 65 },
       { name: "CIVIL", value: 45 },
+      { name: "CSE(AIML)", value: 18 },
+      { name: "CSE(DS)", value: 24 },
     ],
     mostFailedSubjects: [
       { name: "Mathematics-II", count: 85 },
