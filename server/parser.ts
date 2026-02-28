@@ -28,5 +28,7 @@ export async function parsePdfResults(filePath: string): Promise<{ results: any[
   } catch (error: any) {
     console.error("Error communicating with Python PDF parser:", error.message);
     return { results: [], regulation: "Unknown" };
+  } finally {
+    fileStream.destroy();
   }
 }

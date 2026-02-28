@@ -69,8 +69,9 @@ export async function registerRoutes(
   });
 
   app.post(api.upload.results.path, requireAuth, upload.single('file'), async (req, res) => {
+    const filePath = req.file?.path;
     try {
-      if (!req.file) {
+      if (!req.file || !filePath) {
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
@@ -79,7 +80,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Missing required metadata' });
       }
 
-      const filePath = req.file.path;
       let data: any[] = [];
       let detectedRegulation = regulation || "Unknown";
 
@@ -114,18 +114,20 @@ export async function registerRoutes(
         examType, academicYear, semester, branch, batch, regulation: detectedRegulation
       });
 
-      // Cleanup temp file
-      fs.unlinkSync(filePath);
-
       res.json({ message: 'Upload processed', processed: result.processed, skipped: result.skipped, errors: result.errors });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    } finally {
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch (e) { console.error(`Failed to unlink file ${filePath}:`, e); }
+      }
     }
   });
 
   app.post(api.upload.preview.path, requireAuth, upload.single('file'), async (req, res) => {
+    const filePath = req.file?.path;
     try {
-      if (!req.file) {
+      if (!req.file || !filePath) {
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
@@ -134,7 +136,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: 'Missing required metadata (Batch)' });
       }
 
-      const filePath = req.file.path;
       let data: any[] = [];
 
       if (req.file.originalname.endsWith('.csv')) {
@@ -174,9 +175,6 @@ export async function registerRoutes(
         }
       }
 
-      // Cleanup temp file since we don't save it from preview
-      fs.unlinkSync(filePath);
-
       res.json({
         totalParsed: data.length,
         matchedCount: matchedRows.length,
@@ -185,16 +183,20 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    } finally {
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch (e) { console.error(`Failed to unlink file ${filePath}:`, e); }
+      }
     }
   });
 
   app.post(api.upload.students.path, requireAuth, upload.single('file'), async (req, res) => {
+    const filePath = req.file?.path;
     try {
-      if (!req.file) {
+      if (!req.file || !filePath) {
         return res.status(400).json({ message: 'No file uploaded' });
       }
 
-      const filePath = req.file.path;
       let data: any[] = [];
 
       if (req.file.originalname.endsWith('.csv')) {
@@ -210,12 +212,13 @@ export async function registerRoutes(
 
       const result = await storage.processStudentsUpload(data);
 
-      // Cleanup temp file
-      fs.unlinkSync(filePath);
-
       res.json({ message: 'Student data uploaded', processed: result.processed, errors: result.errors });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    } finally {
+      if (filePath) {
+        try { fs.unlinkSync(filePath); } catch (e) { console.error(`Failed to unlink file ${filePath}:`, e); }
+      }
     }
   });
 
