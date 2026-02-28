@@ -14,7 +14,7 @@ ROW_PATTERN = re.compile(r"^(?:(\d+)\s+)?([0-9A-Z]{10,12})\s+([A-Z0-9]+)\s+(.+)$
 # COMPLE = non-credit subject completed
 GRADE_MAP = {
     # Old regulation grades
-    'O': 10, 'A+': 9, 'B+': 7,
+    'O': 10, 'A+': 10, 'B+': 7,
     # Standard JNTU grades (per certificate)
     'S': 10,   # Superior  (90+)
     'A': 9,    # Excellent (80-89)
@@ -100,7 +100,7 @@ def process_page(page_index, contents):
 
             # Strip revaluation artefacts: PDFs print "--- No" or similar at end of subject name
             # to indicate "no change in marks". Remove these so the name stays clean.
-            subname = re.sub(r'\s*-{2,3}\s*No\s*$', '', subname, flags=re.IGNORECASE).strip()
+            subname = re.sub(r'\s*(?:-{2,3}\s*No|No\s*Change(?:\s*No)?)\s*$', '', subname, flags=re.IGNORECASE).strip()
             
             # Detect regulation per row
             row_reg = "Unknown"

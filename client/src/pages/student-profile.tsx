@@ -211,7 +211,11 @@ export default function StudentProfile() {
                   semesterMap[sem][code].push(r);
                 }
 
-                return Object.entries(semesterMap).map(([semester, subjectMap]) => {
+                const semOrder: Record<string, number> = { "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8 };
+                const sortedSemesters = Object.keys(semesterMap).sort((a, b) => (semOrder[a] || 99) - (semOrder[b] || 99));
+
+                return sortedSemesters.map(semester => {
+                  const subjectMap = semesterMap[semester];
                   let localSno = 0;
                   const subjectEntries = Object.entries(subjectMap);
                   return (
@@ -219,108 +223,127 @@ export default function StudentProfile() {
                       {/* Semester header row */}
                       <tr className="bg-slate-200/60">
                         <td
-                          colSpan={14}
+                          colSpan={4 + Math.max(1, (() => {
+                            let maxAtt = 0;
+                            for (const atts of Object.values(subjectMap)) {
+                              const realAtts = atts.filter((a: any) => a.grade?.toUpperCase()?.trim() !== 'CHANGE').length;
+                              if (realAtts > maxAtt) maxAtt = realAtts;
+                            }
+                            return Math.max(8, maxAtt - 1);
+                          })()) + 2} // SNo, Code, Subj, Reg + Dynamic Supp Cols + Grade, Credits
                           className="p-2 pl-4 text-xs font-bold text-slate-600 uppercase tracking-widest border-y border-slate-200"
                         >
                           {formatSemester(semester)}
                         </td>
                       </tr>
-                      {/* Repeat headers for this semester */}
-                      <tr className="border-b border-slate-200 bg-slate-100/70 text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                        <th className="p-2 sm:p-3 pl-4 text-left">SNo</th>
-                        <th className="p-2 sm:p-3 text-left">Exam Code</th>
-                        <th className="p-2 sm:p-3 min-w-[180px] text-left">Subject</th>
-                        <th className="p-2 sm:p-3 text-center">Regular</th>
-                        <th className="p-2 sm:p-3 text-center">Supp1</th>
-                        <th className="p-2 sm:p-3 text-center">Supp2</th>
-                        <th className="p-2 sm:p-3 text-center">Supp3</th>
-                        <th className="p-2 sm:p-3 text-center">Supp4</th>
-                        <th className="p-2 sm:p-3 text-center">Supp5</th>
-                        <th className="p-2 sm:p-3 text-center">Supp6</th>
-                        <th className="p-2 sm:p-3 text-center">Supp7</th>
-                        <th className="p-2 sm:p-3 text-center">Supp8</th>
-                        <th className="p-2 sm:p-3 text-center font-bold text-slate-800">Grade</th>
-                        <th className="p-2 sm:p-3 pr-4 text-center">Credits</th>
-                      </tr>
-                      {subjectEntries.map(([code, attempts]) => {
-                        localSno++;
-                        // Sort all attempts by attemptNo
-                        const sorted = [...attempts].sort((a, b) => a.attemptNo - b.attemptNo);
-
-                        // Filter out revaluation-no-change rows (grade === 'CHANGE')
-                        // These should NOT occupy a Supp column slot
-                        const realAttempts = sorted.filter(
-                          a => a.grade?.toUpperCase()?.trim() !== 'CHANGE'
-                        );
-                        const hasRevaluation = sorted.some(
-                          a => a.grade?.toUpperCase()?.trim() === 'CHANGE'
-                        );
-
-                        // Slot-based lookup: idx 0 = Regular, idx 1 = Supp1 ... idx 8 = Supp8
-                        const attemptForSlot = (idx: number) => {
-                          return realAttempts[idx] || null;
-                        };
-
-                        // Use last real attempt for final Grade/Credits/Status
-                        const latest = realAttempts[realAttempts.length - 1] ?? sorted[sorted.length - 1];
-                        const isPass = latest?.status === "PASS";
+                      {/* Calculate max attempts for this semester to dynamically render Supp columns */}
+                      {(() => {
+                        let maxAttempts = 0;
+                        for (const attempts of Object.values(subjectMap)) {
+                          // Filter revaluation updates which aren't new attempts
+                          const realAttemptsCount = attempts.filter(a => a.grade?.toUpperCase()?.trim() !== 'CHANGE').length;
+                          if (realAttemptsCount > maxAttempts) maxAttempts = realAttemptsCount;
+                        }
+                        // At least show Supp1 to Supp8 to maintain traditional layout even if no supply exist
+                        const maxSupps = Math.max(8, maxAttempts - 1); // -1 because attempt 1 is Regular
+                        const suppColumnsIndex = Array.from({ length: maxSupps }, (_, i) => i + 1);
 
                         return (
-                          <tr
-                            key={code}
-                            className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors"
-                          >
-                            <td className="p-3 pl-4 text-slate-500 tabular-nums">{localSno}</td>
-                            <td className="p-3 font-mono text-xs text-slate-700">{code}</td>
-                            <td className="p-3 text-slate-900 font-medium leading-snug">
-                              {latest?.subject?.subjectName || "—"}
-                            </td>
-                            {/* Regular = slot 0 */}
-                            <td className="p-3 text-center">
-                              {(() => {
-                                const a = attemptForSlot(0);
-                                if (!a) return <span className="text-slate-200">—</span>;
-                                const g = a.grade;
-                                const isFail = g === 'F';
-                                return (
-                                  <div className="flex flex-col items-center">
-                                    <span className={isFail ? 'text-destructive font-bold' : 'text-slate-700 font-medium'}>{g}</span>
-                                    <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                            {/* Supp1–Supp8 = slots 1–8 */}
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((slotIdx) => {
-                              const a = attemptForSlot(slotIdx);
-                              if (!a) return <td key={slotIdx} className="p-3 text-center"><span className="text-slate-200">—</span></td>;
-                              const g = a.grade;
-                              const isFail = g === 'F';
+                          <React.Fragment>
+                            {/* Repeat headers for this semester */}
+                            <tr className="border-b border-slate-200 bg-slate-100/70 text-[10px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                              <th className="p-2 sm:p-3 pl-4 text-left">SNo</th>
+                              <th className="p-2 sm:p-3 text-left">Exam Code</th>
+                              <th className="p-2 sm:p-3 min-w-[180px] text-left">Subject</th>
+                              <th className="p-2 sm:p-3 text-center">Regular</th>
+                              {suppColumnsIndex.map(idx => (
+                                <th key={idx} className="p-2 sm:p-3 text-center">Supp{idx}</th>
+                              ))}
+                              <th className="p-2 sm:p-3 text-center font-bold text-slate-800">Grade</th>
+                              <th className="p-2 sm:p-3 pr-4 text-center">Credits</th>
+                            </tr>
+                            {subjectEntries.map(([code, attempts]) => {
+                              localSno++;
+                              // Sort all attempts by attemptNo
+                              const sorted = [...attempts].sort((a, b) => a.attemptNo - b.attemptNo);
+
+                              // Filter out revaluation-no-change rows (grade === 'CHANGE')
+                              // These should NOT occupy a Supp column slot
+                              const realAttempts = sorted.filter(
+                                a => a.grade?.toUpperCase()?.trim() !== 'CHANGE'
+                              );
+                              const hasRevaluation = sorted.some(
+                                a => a.grade?.toUpperCase()?.trim() === 'CHANGE'
+                              );
+
+                              // Slot-based lookup: idx 0 = Regular, idx 1 = Supp1 ... idx 8 = Supp8
+                              const attemptForSlot = (idx: number) => {
+                                return realAttempts[idx] || null;
+                              };
+
+                              // Use last real attempt for final Grade/Credits/Status
+                              const latest = realAttempts[realAttempts.length - 1] ?? sorted[sorted.length - 1];
+                              const isPass = latest?.status === "PASS";
+
                               return (
-                                <td key={slotIdx} className="p-3 text-center">
-                                  <div className="flex flex-col items-center">
-                                    <span className={isFail ? 'text-destructive font-bold' : 'text-slate-600 font-medium'}>{g}</span>
-                                    <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
-                                  </div>
-                                </td>
+                                <tr
+                                  key={code}
+                                  className="border-b border-slate-100 hover:bg-amber-50/30 transition-colors"
+                                >
+                                  <td className="p-3 pl-4 text-slate-500 tabular-nums">{localSno}</td>
+                                  <td className="p-3 font-mono text-xs text-slate-700">{code}</td>
+                                  <td className="p-3 text-slate-900 font-medium leading-snug">
+                                    {latest?.subject?.subjectName || "—"}
+                                  </td>
+                                  {/* Regular = slot 0 */}
+                                  <td className="p-3 text-center">
+                                    {(() => {
+                                      const a = attemptForSlot(0);
+                                      if (!a) return <span className="text-slate-200">—</span>;
+                                      const g = a.grade;
+                                      const isFail = g === 'F';
+                                      return (
+                                        <div className="flex flex-col items-center">
+                                          <span className={isFail ? 'text-destructive font-bold' : 'text-slate-700 font-medium'}>{g}</span>
+                                          <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  {/* Dynamically mapped Supp slots */}
+                                  {suppColumnsIndex.map((slotIdx) => {
+                                    const a = attemptForSlot(slotIdx);
+                                    if (!a) return <td key={slotIdx} className="p-3 text-center"><span className="text-slate-200">—</span></td>;
+                                    const g = a.grade;
+                                    const isFail = g === 'F';
+                                    return (
+                                      <td key={slotIdx} className="p-3 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={isFail ? 'text-destructive font-bold' : 'text-slate-600 font-medium'}>{g}</span>
+                                          <span className="text-[10px] text-slate-400 mt-1 whitespace-nowrap">{a.academicYear}</span>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                  {/* Final Grade — with optional Rev badge if revaluation was filed */}
+                                  <td className="p-3 text-center">
+                                    <span className={`font-bold text-base ${isPass ? 'text-primary' : 'text-destructive'}`}>
+                                      {latest?.grade || "—"}
+                                    </span>
+                                    {hasRevaluation && (
+                                      <span className="ml-1 text-[9px] font-semibold px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300 align-middle">Rev</span>
+                                    )}
+                                  </td>
+                                  {/* Credits */}
+                                  <td className="p-3 pr-4 text-center text-slate-700 font-medium">
+                                    {!latest ? "—" : !isPass ? "0" : (latest.subject?.credits ?? "—")}
+                                  </td>
+                                </tr>
                               );
                             })}
-                            {/* Final Grade — with optional Rev badge if revaluation was filed */}
-                            <td className="p-3 text-center">
-                              <span className={`font-bold text-base ${isPass ? 'text-primary' : 'text-destructive'}`}>
-                                {latest?.grade || "—"}
-                              </span>
-                              {hasRevaluation && (
-                                <span className="ml-1 text-[9px] font-semibold px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-300 align-middle">Rev</span>
-                              )}
-                            </td>
-                            {/* Credits */}
-                            <td className="p-3 pr-4 text-center text-slate-700 font-medium">
-                              {latest?.subject?.credits ?? "—"}
-                            </td>
-                          </tr>
+                          </React.Fragment>
                         );
-                      })}
+                      })()}
                     </React.Fragment>
                   );
                 });

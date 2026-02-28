@@ -10,14 +10,14 @@ export function cn(...inputs: ClassValue[]) {
  * e.g. "I" → "1st Year Semester 1", "III" → "2nd Year Semester 1", etc.
  */
 const SEMESTER_LABELS: Record<string, string> = {
-  "I": "1st Year Semester 1",
-  "II": "1st Year Semester 2",
-  "III": "2nd Year Semester 1",
-  "IV": "2nd Year Semester 2",
-  "V": "3rd Year Semester 1",
-  "VI": "3rd Year Semester 2",
-  "VII": "4th Year Semester 1",
-  "VIII": "4th Year Semester 2",
+  "I": "I - Sem I",
+  "II": "I - Sem II",
+  "III": "II - Sem I",
+  "IV": "II - Sem II",
+  "V": "III - Sem I",
+  "VI": "III - Sem II",
+  "VII": "IV - Sem I",
+  "VIII": "IV - Sem II",
 };
 
 export function formatSemester(sem: string | undefined | null): string {

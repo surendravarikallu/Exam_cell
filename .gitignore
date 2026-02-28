@@ -4,3 +4,21 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment variables - never commit
+.env
+.env.*
+!.env.example
+
+# Uploaded files temp directory
+uploads/
+
+# Temp / scratch scripts
+script/test_pdf.ts
+script/test_pdf.js
+script/test_pdf.cjs
+script/test_summer.ts
+
+# OS / Editor
+Thumbs.db
+.vscode/

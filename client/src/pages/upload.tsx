@@ -21,6 +21,7 @@ export default function UploadResults() {
   const [semester, setSemester] = useState("I");
   const [branch, setBranch] = useState("ALL");
   const [batch, setBatch] = useState(`${new Date().getFullYear()}-${new Date().getFullYear() + 4}`);
+  const [regulation, setRegulation] = useState("Unknown");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +101,7 @@ export default function UploadResults() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("batch", batch);
+    formData.append("regulation", regulation);
 
     try {
       // 1. Fetch preview data first
@@ -122,6 +124,7 @@ export default function UploadResults() {
     formData.append("semester", semester);
     formData.append("branch", branch);
     formData.append("batch", batch);
+    formData.append("regulation", regulation);
 
     try {
       await uploadResults(formData);
@@ -232,6 +235,21 @@ export default function UploadResults() {
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none font-medium"
                 >
                   {Array.from({ length: 15 }, (_, i) => { const y = 2015 + i; return <option key={y} value={`${y}-${y + 4}`}>{`${y}-${y + 4}`}</option>; }).reverse()}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Regulation</label>
+                <select
+                  value={regulation}
+                  onChange={(e) => setRegulation(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/50 appearance-none font-medium"
+                >
+                  <option value="Unknown">Auto-Detect (PDF Only)</option>
+                  <option value="R23">R23</option>
+                  <option value="R20">R20</option>
+                  <option value="R19">R19</option>
+                  <option value="R16">R16</option>
                 </select>
               </div>
             </div>

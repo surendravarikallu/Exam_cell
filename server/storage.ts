@@ -279,8 +279,8 @@ export class DatabaseStorage implements IStorage {
       const s = subjectMap.get(r.SubjectCode);
       if (s) {
         if (r.SubjectName && r.SubjectName !== "Unknown Subject" && s.subjectName !== r.SubjectName) {
-          // Sanitise: strip revaluation artefacts (e.g. "--- No") from the incoming name
-          const cleanedName = r.SubjectName.replace(/\s*-{2,3}\s*No\s*$/i, "").trim();
+          // Sanitise: strip revaluation artefacts (e.g. "--- No", "No Change No") from the incoming name
+          const cleanedName = r.SubjectName.replace(/\s*(?:-{2,3}\s*No|No\s*Change(?:\s*No)?)\s*$/i, "").trim();
           // Reject any name that still contains '---' — it's corrupted parser output
           if (!cleanedName.includes("---") && cleanedName && cleanedName.length > s.subjectName.length) {
             subjectsToUpdateName.set(s.id, cleanedName);
@@ -325,14 +325,18 @@ export class DatabaseStorage implements IStorage {
     }
 
     const resultsToInsert = [];
-    const resultIdsToUpdateLatest = [];
-    // For REVALUATION: track which existing result IDs need grade/status updates
-    const resultUpdatesForRevaluation: { id: number, grade: string, gradePoints: number, creditsEarned: number, status: string }[] = [];
+    const resultUpdatesForRevaluation = [];
+    const resultUpdatesForAttempts = [];
+    const resultIdsToUpdateLatest: number[] = [];
+
+    // Track unique records inside this specific upload to prevent PDF-internal duplicate crashes
+    // Key format: studentId-subjectId-examType-academicYear
+    const seenUploadKeys = new Set<string>();
 
     // 7. Prepare results data sequentially in memory
     for (const row of validResultsData) {
       try {
-        if (!row.RollNumber || !row.SubjectCode) continue;
+        if (!row || !row.RollNumber || !row.SubjectCode) continue;
 
         const student = studentMap.get(row.RollNumber);
         const subject = subjectMap.get(row.SubjectCode);
@@ -342,16 +346,21 @@ export class DatabaseStorage implements IStorage {
         const previousAttempts = previousAttemptsMap.get(key) || [];
         previousAttempts.sort((a, b) => b.attemptNo - a.attemptNo);
 
-        const grade = row.Grade?.toString().toUpperCase().trim() || 'UNKNOWN';
+        let grade = row.Grade?.toString().toUpperCase().trim() || 'UNKNOWN';
         const credits = parseFloat(row.Credits) || 0;
         let isBacklog = false;
 
         // Explicit fail grades
         if (['F', 'ABSENT', 'AB', 'FAIL', 'UNKNOWN'].includes(grade)) {
           isBacklog = true;
-        } else if (grade === 'CHANGE') {
+        } else if (grade.startsWith('CHANGE')) {
           // JNTU Revaluation - mark was changed. If credits earned > 0, they passed.
           isBacklog = credits === 0;
+          if (isBacklog) {
+            grade = 'F (REV)'; // Normalize misleading CHANGE back to F for UI and mark as reval
+          } else {
+            grade = 'CHANGE (REV)'; // Normalize variants like CHANGEREV and mark as reval
+          }
         } else if (grade === 'COMPLE') {
           // Non-credit subject completed — always a pass
           isBacklog = false;
@@ -370,18 +379,39 @@ export class DatabaseStorage implements IStorage {
             .sort((a, b) => b.attemptNo - a.attemptNo)[0];
 
           if (targetAttempt && targetAttempt.id) {
-            // Only update if the revaluation actually changes something
-            if (targetAttempt.grade !== grade) {
+            const baseTargetGrade = targetAttempt.grade.replace(' (REV)', '').trim();
+            const rawGrade = row.Grade?.toString().toUpperCase().trim() || '';
+
+            // 1. Deduplicate identical revaluations in the same PDF
+            const uploadUniqueKey = `REVAL-${student.id}-${subject.id}-${metadata.examType}-${metadata.academicYear}`;
+            if (seenUploadKeys.has(uploadUniqueKey)) {
+              continue;
+            }
+            seenUploadKeys.add(uploadUniqueKey);
+
+            // Update if the grade actually changed, OR if the raw grade implies revaluation, OR if it simply lacks the (REV) tag
+            if (baseTargetGrade !== grade || rawGrade.startsWith('CHANGE') || !targetAttempt.grade.includes('(REV)')) {
+              const finalGrade = grade.includes('(REV)') ? grade : `${grade} (REV)`;
+
+              // Safely handle academicYear - if the student already has another attempt of the same type exactly on the reval date, don't overwrite
+              let newYear = metadata.academicYear;
+              const yearCollision = previousAttempts.some(a => a.id !== targetAttempt.id && a.examType === targetType && a.academicYear === newYear);
+              if (yearCollision) {
+                newYear = targetAttempt.academicYear; // Retain original to prevent unique_result_idx crash
+              }
+
               resultUpdatesForRevaluation.push({
                 id: targetAttempt.id,
-                grade,
-                gradePoints: parseInt(row.GradePoints) || 0,
+                grade: finalGrade,
+                gradePoints: Math.max(parseInt(row.GradePoints) || 0, targetAttempt.gradePoints || 0), // Revals don't decrease points
                 creditsEarned: isBacklog ? 0 : credits,
                 status: isBacklog ? 'BACKLOG' : 'PASS',
+                academicYear: newYear,
               });
               // Update the in-memory reference as well
-              targetAttempt.grade = grade;
+              targetAttempt.grade = finalGrade;
               targetAttempt.status = isBacklog ? 'BACKLOG' : 'PASS';
+              targetAttempt.academicYear = newYear;
               processed++;
             }
           }
@@ -391,7 +421,7 @@ export class DatabaseStorage implements IStorage {
 
         // ── REGULAR / SUPPLY: normal attempt insertion logic ──
 
-        // Prevent duplicate attempts if same file is uploaded twice
+        // 1. Prevent duplicate attempts if same file is uploaded twice (DB check)
         const existingSameAttempt = previousAttempts.find(a =>
           a.examType === metadata.examType &&
           a.academicYear === metadata.academicYear &&
@@ -402,13 +432,38 @@ export class DatabaseStorage implements IStorage {
           continue; // Skip inserting duplicate
         }
 
-        // Compute Attempt Number based on Exam Type rules
+        // 2. Prevent duplicate attempts if the current PDF file contains literal duplicates of the same row (In-memory check)
+        const uploadUniqueKey = `${student.id}-${subject.id}-${metadata.examType}-${metadata.academicYear}`;
+        if (seenUploadKeys.has(uploadUniqueKey)) {
+          continue; // Skip inserting intra-file duplicate
+        }
+        seenUploadKeys.add(uploadUniqueKey);
+
+        // Compute Attempt Number dynamically by placing the new attempt chronologically
         let attemptNo = 1;
-        if (metadata.examType === 'SUPPLY') {
-          // Supply is always +1 over the highest previous attempt
-          attemptNo = previousAttempts.length > 0 ? previousAttempts[0].attemptNo + 1 : 2;
-        } else if (metadata.examType === 'REGULAR') {
-          attemptNo = 1;
+        const allAttemptsChronological = [...previousAttempts, { academicYear: metadata.academicYear }]
+          .sort((a, b) => {
+            // Helper logic to parse dates like "January 2024"
+            const dateA = new Date((a as any).academicYear);
+            const dateB = new Date((b as any).academicYear);
+            const timeA = isNaN(dateA.getTime()) ? new Date("2000-01-01").getTime() : dateA.getTime();
+            const timeB = isNaN(dateB.getTime()) ? new Date("2000-01-01").getTime() : dateB.getTime();
+            return timeA - timeB;
+          });
+
+        // Find the index of our newly inserted timeline marker to determine its Attempt Number
+        attemptNo = allAttemptsChronological.findIndex(a => a.academicYear === metadata.academicYear) + 1;
+
+        // Note: Because we are inserting a new attempt chronologically, previously inserted
+        // attempts that occurred *after* this new date now have their attemptNo invalidated.
+        // We push them into an array to batch-update them later.
+        const subsequentAttempts = allAttemptsChronological.slice(attemptNo);
+        for (let i = 0; i < subsequentAttempts.length; i++) {
+          const olderAttempt = subsequentAttempts[i] as any;
+          if (olderAttempt.id) { // It's an existing DB record, not our placeholder
+            // The new attemptNo is its index in the chronological array + 1
+            resultUpdatesForAttempts.push({ id: olderAttempt.id, attemptNo: attemptNo + i + 1 });
+          }
         }
 
         // Determine if they already passed this subject in a prior attempt
@@ -469,6 +524,11 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // 8.1 Shift subsequent attempt numbers when past data is uploaded out-of-order
+    for (const upt of resultUpdatesForAttempts) {
+      await db.update(results).set({ attemptNo: upt.attemptNo }).where(eq(results.id, upt.id));
+    }
+
     // 8b. Revaluation grade in-place updates (small set — typically a few hundred max)
     for (const rev of resultUpdatesForRevaluation) {
       await db.update(results).set({
@@ -476,6 +536,7 @@ export class DatabaseStorage implements IStorage {
         gradePoints: rev.gradePoints,
         creditsEarned: rev.creditsEarned,
         status: rev.status,
+        ...(rev.academicYear ? { academicYear: rev.academicYear } : {})
       }).where(eq(results.id, rev.id));
     }
 
@@ -498,7 +559,7 @@ export class DatabaseStorage implements IStorage {
     let processed = 0;
     let errors: string[] = [];
 
-    const studentsToUpsert = [];
+    const uniqueStudentsMap = new Map<string, any>();
 
     for (const row of studentsData) {
       const rawRollNum = row.RollNumber || row.Roll_Number || row.roll_number || row.rollNumber || row["Roll Number"] || row["Roll number"] || row["ROLL NUMBER"];
@@ -506,24 +567,33 @@ export class DatabaseStorage implements IStorage {
 
       const rollNumber = rawRollNum.toString().trim().toUpperCase();
       const name = (row.Name || row.StudentName || row.name || row["Student Name"] || row["student name"] || "Unknown").toString().trim();
-      const branch = (row.Branch || row.branch || "Unknown").toString().trim().toUpperCase();
+      let branch = (row.Branch || row.branch || "Unknown").toString().trim().toUpperCase();
       const batch = (row.Batch || row.batch || "Unknown").toString().trim();
       const regulation = (row.Regulation || row.Reg || row.regulation || "Unknown").toString().trim().toUpperCase();
+
+      // Normalize branches according to user request
+      if (branch.includes("AIML") || branch.includes("AI&ML") || branch.includes("AI & ML") || branch === "CSE(AIML)") {
+        branch = "CSE (AI&ML)";
+      } else if (branch.includes("DS") || branch.includes("DATA SCIENCE") || branch === "CSE(DS)") {
+        branch = "CSE (DS)";
+      }
 
       if (!rollNumber) {
         errors.push("Skipped row with missing Roll Number.");
         continue;
       }
 
-      studentsToUpsert.push({
+      uniqueStudentsMap.set(rollNumber, {
         rollNumber,
         name,
         branch,
         batch,
         regulation
       });
-      processed++;
     }
+
+    const studentsToUpsert = Array.from(uniqueStudentsMap.values());
+    processed = studentsToUpsert.length;
 
     if (studentsToUpsert.length > 0) {
       const chunks = [];
@@ -567,7 +637,17 @@ export class DatabaseStorage implements IStorage {
 
     // Filter students by branch and/or batch
     let studentConditions: any[] = [inArray(students.id, Array.from(new Set(backlogRows.map(r => r.studentId))))];
-    if (filters.branch) studentConditions.push(eq(students.branch, filters.branch));
+
+    // Normalize branch name for strict lookup
+    if (filters.branch) {
+      let searchBranch = filters.branch;
+      if (searchBranch === "CSE(AIML)" || searchBranch === "AIML" || searchBranch.includes("AI&ML")) {
+        searchBranch = "CSE (AI&ML)";
+      } else if (searchBranch === "CSE(DS)" || searchBranch === "DS" || searchBranch.includes("DATA SCIENCE")) {
+        searchBranch = "CSE (DS)";
+      }
+      studentConditions.push(eq(students.branch, searchBranch));
+    }
     if (filters.batch) {
       // e.g. "2023-2027" -> "23" -> prefix "23JK"
       const startYearMatch = filters.batch.match(/^20(\d{2})/);
@@ -605,7 +685,17 @@ export class DatabaseStorage implements IStorage {
   async getCumulativeBacklogs(filters: any = {}): Promise<any[]> {
     // This method fetches detailed performance for all students matching filters
     let studentConditions: any[] = [];
-    if (filters.branch) studentConditions.push(eq(students.branch, filters.branch));
+
+    // Normalize branch name for strict lookup
+    if (filters.branch) {
+      let searchBranch = filters.branch;
+      if (searchBranch === "CSE(AIML)" || searchBranch === "AIML" || searchBranch.includes("AI&ML")) {
+        searchBranch = "CSE (AI&ML)";
+      } else if (searchBranch === "CSE(DS)" || searchBranch === "DS" || searchBranch.includes("DATA SCIENCE")) {
+        searchBranch = "CSE (DS)";
+      }
+      studentConditions.push(eq(students.branch, searchBranch));
+    }
     if (filters.batch) {
       // e.g. "2023-2027" -> "23" -> prefix "23JK"
       const startYearMatch = filters.batch.match(/^20(\d{2})/);
@@ -969,7 +1059,7 @@ export class DatabaseStorage implements IStorage {
     const allSubjects = await db.select().from(subjects);
     let fixed = 0;
     for (const subj of allSubjects) {
-      const cleaned = subj.subjectName.replace(/\s*-{2,3}\s*No\s*$/i, '').trim();
+      const cleaned = subj.subjectName.replace(/\s*(?:-{2,3}\s*No|No\s*Change(?:\s*No)?)\s*$/i, '').trim();
       if (cleaned !== subj.subjectName && cleaned.length > 0) {
         await db.update(subjects).set({ subjectName: cleaned }).where(eq(subjects.id, subj.id));
         fixed++;

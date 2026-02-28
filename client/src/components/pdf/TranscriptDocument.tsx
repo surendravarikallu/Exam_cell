@@ -11,12 +11,11 @@ Font.register({
     ]
 });
 
-// Styles referencing the exact template borders and layouts
 const styles = StyleSheet.create({
     page: {
-        padding: 12, // Reduced padding
+        padding: 8, // Reduced padding
         fontFamily: 'Open Sans',
-        fontSize: 6.5, // Reduced global font size
+        fontSize: 5.5, // Reduced global font size
         position: 'relative',
         height: '100%',
         backgroundColor: '#ffffff'
@@ -31,31 +30,31 @@ const styles = StyleSheet.create({
         borderColor: '#000000',
     },
     headerOuter: {
-        borderBottomWidth: 1.5,
+        borderBottomWidth: 1,
         borderBottomColor: '#000',
-        paddingBottom: 2,
-        marginBottom: 2,
+        paddingBottom: 1,
+        marginBottom: 1,
         alignItems: 'center',
     },
     headerImage: {
         width: '100%',
-        height: 50, // Smaller header
+        height: 40, // Smaller header
         objectFit: 'fill' // Stretches to fill width and height
     },
     topInfoBlock: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingHorizontal: 10,
-        paddingBottom: 4,
-        paddingTop: 2,
-        borderBottomWidth: 1.5,
+        paddingHorizontal: 8,
+        paddingBottom: 2,
+        paddingTop: 1,
+        borderBottomWidth: 1,
         borderBottomColor: '#000',
-        marginBottom: 4, // Tighter info block
+        marginBottom: 2, // Tighter info block
     },
     infoCol: {
         display: 'flex',
         flexDirection: 'column',
-        gap: 4, // Tighter gaps
+        gap: 2, // Tighter gaps
         width: '48%',
     },
     infoRow: {
@@ -74,8 +73,8 @@ const styles = StyleSheet.create({
     yearRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 4, // Tighter rows
-        paddingHorizontal: 8
+        marginBottom: 2, // Tighter rows
+        paddingHorizontal: 4
     },
     semBlock: {
         width: '49%',
@@ -83,8 +82,8 @@ const styles = StyleSheet.create({
     semTitle: {
         textAlign: 'center',
         fontWeight: 700,
-        marginBottom: 2,
-        fontSize: 7.5,
+        marginBottom: 1,
+        fontSize: 6.5,
     },
     table: {
         display: 'flex',
@@ -107,12 +106,12 @@ const styles = StyleSheet.create({
         alignItems: 'stretch',
     },
     // Exact Widths summing to 100%
-    colSno: { width: '5%', borderRightWidth: 1, borderColor: '#000', padding: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' },
-    colTitle: { width: '61%', borderRightWidth: 1, borderColor: '#000', padding: 2, display: 'flex', justifyContent: 'center' },
-    colMonth: { width: '13%', borderRightWidth: 1, borderColor: '#000', padding: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: 5 },
-    colGrade: { width: '7%', borderRightWidth: 1, borderColor: '#000', padding: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' },
-    colPts: { width: '7%', borderRightWidth: 1, borderColor: '#000', padding: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' },
-    colCr: { width: '7%', padding: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' },
+    colSno: { width: '5%', borderRightWidth: 1, borderColor: '#000', padding: 0.5, display: 'flex', justifyContent: 'center', alignItems: 'center' },
+    colTitle: { width: '61%', borderRightWidth: 1, borderColor: '#000', padding: 1, display: 'flex', justifyContent: 'center' },
+    colMonth: { width: '13%', borderRightWidth: 1, borderColor: '#000', padding: 0.5, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: 4.5 },
+    colGrade: { width: '7%', borderRightWidth: 1, borderColor: '#000', padding: 0.5, display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold' },
+    colPts: { width: '7%', borderRightWidth: 1, borderColor: '#000', padding: 0.5, display: 'flex', justifyContent: 'center', alignItems: 'center' },
+    colCr: { width: '7%', padding: 0.5, display: 'flex', justifyContent: 'center', alignItems: 'center' },
 
     colHeaderSno: { width: '5%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' },
     colHeaderTitle: { width: '61%', borderRightWidth: 1, borderColor: '#000', justifyContent: 'center', alignItems: 'center' },
@@ -123,15 +122,28 @@ const styles = StyleSheet.create({
 
     gpaBlock: {
         flexDirection: 'row',
-        marginTop: 2,
-        paddingLeft: 4
+        marginTop: 1,
+        paddingLeft: 2
     },
     gpaText: {
-        fontSize: 6,
+        fontSize: 5.5,
     },
     gpaValue: {
         fontWeight: 700
     },
+    signatureBlock: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 'auto',
+        paddingHorizontal: 24,
+        paddingTop: 6,
+        paddingBottom: 20
+    },
+    signatureText: {
+        fontSize: 6.5,
+        fontWeight: 'bold',
+        textAlign: 'center'
+    }
 });
 
 const SemLabels: Record<string, string> = {
@@ -231,7 +243,7 @@ export const TranscriptDocument = ({ studentsData }: { studentsData: { student: 
                         <View style={styles.pageBorder} />
 
                         {/* Top College Header Image */}
-                        <View style={{ paddingHorizontal: 6, paddingTop: 6 }}>
+                        <View style={{ paddingHorizontal: 4, paddingTop: 4 }}>
                             <View style={styles.headerOuter}>
                                 <Image src="/college_header.png" style={styles.headerImage} />
                             </View>
@@ -310,41 +322,59 @@ export const TranscriptDocument = ({ studentsData }: { studentsData: { student: 
                                                     <Text style={styles.semTitle}>{SemLabels[semVal]}</Text>
 
                                                     <View style={styles.table}>
-                                                        <View style={[styles.tableHeader, { height: 35 }]}>
+                                                        <View style={[styles.tableHeader, { height: 28 }]}>
                                                             <View style={styles.colHeaderSno}>
-                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4.5, width: 35, textAlign: 'center', fontWeight: 'bold' }}>S.No.</Text>
+                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4, width: 35, textAlign: 'center', fontWeight: 'bold' }}>S.No.</Text>
                                                             </View>
                                                             <View style={styles.colHeaderTitle}>
-                                                                <Text style={{ fontSize: 6.5, fontWeight: 'bold', textAlign: 'center' }}>COURSE TITLE</Text>
+                                                                <Text style={{ fontSize: 6, fontWeight: 'bold', textAlign: 'center' }}>COURSE TITLE</Text>
                                                             </View>
                                                             <View style={styles.colHeaderMonth}>
-                                                                <Text style={{ fontSize: 4.5, fontWeight: 'bold', textAlign: 'center' }}>Month</Text>
-                                                                <Text style={{ fontSize: 4.5, fontWeight: 'bold', textAlign: 'center' }}>&</Text>
-                                                                <Text style={{ fontSize: 4.5, fontWeight: 'bold', textAlign: 'center' }}>Year</Text>
+                                                                <Text style={{ fontSize: 4, fontWeight: 'bold', textAlign: 'center' }}>Month</Text>
+                                                                <Text style={{ fontSize: 4, fontWeight: 'bold', textAlign: 'center' }}>&</Text>
+                                                                <Text style={{ fontSize: 4, fontWeight: 'bold', textAlign: 'center' }}>Year</Text>
                                                             </View>
                                                             <View style={styles.colHeaderGrade}>
-                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4.5, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Grade</Text>
+                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Grade</Text>
                                                             </View>
                                                             <View style={styles.colHeaderPts}>
-                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4.5, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Grade Points</Text>
+                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Grade Points</Text>
                                                             </View>
                                                             <View style={styles.colHeaderCr}>
-                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4.5, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Credits</Text>
+                                                                <Text style={{ transform: 'rotate(-90deg)', fontSize: 4, width: 35, textAlign: 'center', fontWeight: 'bold' }}>Credits</Text>
                                                             </View>
                                                         </View>
 
                                                         {semResults.map((r, i) => {
-                                                            const isLast = i === semResults.length - 1;
+                                                            const isLast = (i === semResults.length - 1) && (semResults.length >= 10);
                                                             return (
                                                                 <View key={r.id} style={[styles.tableRow, isLast ? { borderBottomWidth: 0 } : {}]}>
                                                                     <Text style={styles.colSno}>{i + 1}</Text>
                                                                     <Text style={styles.colTitle}>{r.subject?.subjectName || r.subjectId}</Text>
                                                                     <Text style={styles.colMonth}>{formatMonth(r.academicYear)}</Text>
-                                                                    <Text style={styles.colGrade}>{r.grade === 'COMPLE' || r.grade === 'COMPLETED' ? 'CMP' : r.grade}</Text>
+                                                                    <View style={[styles.colGrade, { flexDirection: 'row' }]}>
+                                                                        <Text>{r.grade === 'COMPLE' || r.grade === 'COMPLETED' ? 'CMP' : r.grade?.replace(' (REV)', '')}</Text>
+                                                                        {r.grade?.includes('(REV)') && <Text style={{ fontSize: 3.5, marginLeft: 1, marginTop: 0.5 }}>(REV)</Text>}
+                                                                    </View>
                                                                     <Text style={styles.colPts}>{r.gradePoints}</Text>
                                                                     <Text style={styles.colCr}>{r.creditsEarned}</Text>
                                                                 </View>
                                                             )
+                                                        })}
+
+                                                        {/* Pad table with empty rows to ensure uniform height across semesters (Max ~10 rows typical) */}
+                                                        {Array.from({ length: Math.max(0, 10 - semResults.length) }).map((_, i) => {
+                                                            const isLast = i === (10 - semResults.length - 1);
+                                                            return (
+                                                                <View key={`empty-${i}`} style={[styles.tableRow, isLast ? { borderBottomWidth: 0 } : {}]}>
+                                                                    <Text style={[styles.colSno, { color: 'transparent' }]}>-</Text>
+                                                                    <Text style={[styles.colTitle, { color: 'transparent' }]}>-</Text>
+                                                                    <Text style={[styles.colMonth, { color: 'transparent' }]}>-</Text>
+                                                                    <Text style={[styles.colGrade, { color: 'transparent' }]}>-</Text>
+                                                                    <Text style={[styles.colPts, { color: 'transparent' }]}>-</Text>
+                                                                    <Text style={[styles.colCr, { color: 'transparent' }]}>-</Text>
+                                                                </View>
+                                                            );
                                                         })}
                                                     </View>
 
@@ -357,6 +387,16 @@ export const TranscriptDocument = ({ studentsData }: { studentsData: { student: 
                                     </View>
                                 );
                             })}
+                        </View>
+
+                        {/* Signature Footer */}
+                        <View style={styles.signatureBlock}>
+                            <View>
+                                <Text style={styles.signatureText}>CONTROLLER OF EXAMINATIONS</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.signatureText}>PRINCIPAL</Text>
+                            </View>
                         </View>
                     </Page>
                 );

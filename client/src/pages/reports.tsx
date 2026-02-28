@@ -14,7 +14,7 @@ const addPdfHeader = async (doc: jsPDF, title: string, branch: string, batch: st
   const pageW = doc.internal.pageSize.width;
   const LEFT_PAD = 30;
 
-  const headerDataUrl = await new Promise<string>((resolve) => {
+  const { url: headerDataUrl, ratio } = await new Promise<{ url: string, ratio: number }>((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -22,18 +22,25 @@ const addPdfHeader = async (doc: jsPDF, title: string, branch: string, batch: st
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       canvas.getContext('2d')!.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
+      resolve({ url: canvas.toDataURL('image/png'), ratio: img.naturalWidth / img.naturalHeight });
     };
-    img.onerror = () => resolve('');
+    img.onerror = () => resolve({ url: '', ratio: 1 });
     img.src = '/Screenshot 2025-07-25 113411_1753423944040.webp';
   });
 
-  const HEADER_IMG_H = headerDataUrl ? 72 : 0;
-  if (headerDataUrl) {
-    doc.addImage(headerDataUrl, 'PNG', 0, 0, pageW, HEADER_IMG_H);
+  let HEADER_IMG_H = headerDataUrl ? 72 : 0;
+  let HEADER_IMG_W = headerDataUrl ? HEADER_IMG_H * ratio : 0;
+
+  if (HEADER_IMG_W > pageW - 40) {
+    HEADER_IMG_W = pageW - 40;
+    HEADER_IMG_H = HEADER_IMG_W / ratio;
   }
 
-  const HEADER_BOTTOM = HEADER_IMG_H + 2;
+  if (headerDataUrl) {
+    doc.addImage(headerDataUrl, 'PNG', (pageW - HEADER_IMG_W) / 2, 5, HEADER_IMG_W, HEADER_IMG_H);
+  }
+
+  const HEADER_BOTTOM = (headerDataUrl ? HEADER_IMG_H + 5 : 0) + 6;
   doc.setDrawColor('#aaa');
   doc.setLineWidth(0.5);
   doc.line(LEFT_PAD, HEADER_BOTTOM, pageW - LEFT_PAD, HEADER_BOTTOM);
@@ -112,7 +119,7 @@ export default function Reports() {
   const exportBacklogsPDF = async () => {
     try {
       setIsGeneratingPdf(true);
-      const response = await fetch(`/api/reports/cumulative-backlogs?branch=${branch}&batch=${batch}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` } });
+      const response = await fetch(`/api/reports/cumulative-backlogs?branch=${encodeURIComponent(branch)}&batch=${encodeURIComponent(batch)}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` } });
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
       if (!data || data.length === 0) { alert("No data"); return; }
@@ -121,13 +128,14 @@ export default function Reports() {
       const HEADER_HEIGHT = await addPdfHeader(doc, 'BACKLOGS REPORT', branch, batch);
 
       const semesters = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"];
-      const semShortLabel = (s: string) => ({ "I": "1Yr\nSem1", "II": "1Yr\nSem2", "III": "2Yr\nSem1", "IV": "2Yr\nSem2", "V": "3Yr\nSem1", "VI": "3Yr\nSem2", "VII": "4Yr\nSem1", "VIII": "4Yr\nSem2" }[s] ?? s);
+      const semShortLabel = (s: string) => ({ "I": "I - Sem I", "II": "I - Sem II", "III": "II - Sem I", "IV": "II - Sem II", "V": "III - Sem I", "VI": "III - Sem II", "VII": "IV - Sem I", "VIII": "IV - Sem II" }[s] ?? s);
 
       const head = [
         [
           { content: 'Sno', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
           { content: 'Roll No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
           { content: 'Name of the Student', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Branch', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
           ...semesters.map(sem => ({ content: semShortLabel(sem), colSpan: 4, styles: { halign: 'center' } })),
           { content: 'Total\nBlgs', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
           { content: 'CGPA', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -139,7 +147,7 @@ export default function Reports() {
       ];
 
       const body = data.map((item: any, index: number) => {
-        const row = [index + 1, item.student.rollNumber, item.student.name];
+        const row = [index + 1, item.student.rollNumber, item.student.name, item.student.branch];
         semesters.forEach(sem => {
           const sData = item.semesterData[sem] || { backlogs: [], backlogCount: 0, credits: 0, sgpa: 0 };
           row.push({ content: sData.backlogs.join(", "), styles: { cellWidth: 'auto', minCellWidth: 35 } });
@@ -157,16 +165,16 @@ export default function Reports() {
         startY: HEADER_HEIGHT + 38, head, body, theme: 'grid',
         styles: { fontSize: 5, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1, cellPadding: 1, overflow: 'linebreak' },
         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: 6 },
-        columnStyles: { 0: { cellWidth: 15, halign: 'center' }, 1: { cellWidth: 40, halign: 'center' }, 2: { cellWidth: 50 } },
+        columnStyles: { 0: { cellWidth: 15, halign: 'center' }, 1: { cellWidth: 40, halign: 'center' }, 2: { cellWidth: 50 }, 3: { cellWidth: 35, halign: 'center' } },
         didParseCell: function (data) {
           if (data.section === 'body') {
             const rawCol = data.column.index;
-            if (rawCol >= 3 && rawCol <= 34) {
-              const semColIndex = (rawCol - 3) % 4;
+            if (rawCol >= 4 && rawCol <= 35) {
+              const semColIndex = (rawCol - 4) % 4;
               if (semColIndex === 1 || semColIndex === 2 || semColIndex === 3) data.cell.styles.halign = 'center';
               if (semColIndex === 0) data.cell.styles.fontSize = 4;
             }
-            if (rawCol >= 35) data.cell.styles.halign = 'center';
+            if (rawCol >= 36) data.cell.styles.halign = 'center';
           }
         },
       });
@@ -271,7 +279,7 @@ export default function Reports() {
     try {
       setIsGeneratingPdf(true);
       const token = localStorage.getItem('auth_token');
-      const res = await fetch(`/api/reports/batch-transcripts?branch=${branch}&batch=${batch}`, {
+      const res = await fetch(`/api/reports/batch-transcripts?branch=${encodeURIComponent(branch)}&batch=${encodeURIComponent(batch)}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!res.ok) throw new Error("Failed to fetch transcripts");
@@ -314,8 +322,9 @@ export default function Reports() {
         <option value="EEE">EEE</option>
         <option value="MECH">Mechanical</option>
         <option value="CIVIL">Civil</option>
-        <option value="CSE(AIML)">CSE(AIML)</option>
-        <option value="CSE(DS)">CSE(DS)</option>
+        <option value="CSE (AI&ML)">CSE (AI&ML)</option>
+        <option value="CSE (DS)">CSE (DS)</option>
+        <option value="IT">IT</option>
       </select>
     </div>
   );
@@ -399,7 +408,7 @@ export default function Reports() {
                       {backlogs.map((record: any, i: number) => (
                         <tr key={i} className="hover:bg-slate-50">
                           <td className="p-4 pl-6"><div className="font-medium text-slate-900">{record.student?.name || record.name}</div><div className="text-xs text-slate-500">{record.student?.rollNumber || record.rollNumber}</div></td>
-                          <td className="p-4"><div className="text-sm">{record.student?.branch || record.branch}</div><div className="text-xs text-slate-500">{formatSemester(record.semester) || "Multiple"}</div></td>
+                          <td className="p-4"><div className="text-sm">{record.student?.branch || record.branch}</div><div className="text-xs text-slate-500">{record.semester ? formatSemester(record.semester) : "Multiple Semesters"}</div></td>
                           <td className="p-4">
                             <div className="flex gap-1 flex-wrap">
                               {record.subjects ? record.subjects.map((sub: any, idx: number) => (<span key={idx} className="px-2 py-1 bg-destructive/10 text-destructive text-xs rounded">{sub.subjectCode}</span>)) : (<div><span className="text-sm text-destructive">{record.subjectName}</span><br /><span className="text-xs">{record.subjectCode}</span></div>)}
