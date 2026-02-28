@@ -218,9 +218,9 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < missingStudentsData.length; i += 1000) {
         chunks.push(missingStudentsData.slice(i, i + 1000));
       }
-      await Promise.all(chunks.map(chunk =>
-        db.insert(students).values(chunk).onConflictDoNothing({ target: students.rollNumber })
-      ));
+      for (const chunk of chunks) {
+        await db.insert(students).values(chunk).onConflictDoNothing({ target: students.rollNumber });
+      }
       const allStudents = await db.select().from(students).where(inArray(students.rollNumber, uniqueRolls));
       for (const s of allStudents) {
         studentMap.set(s.rollNumber, s);
@@ -263,9 +263,9 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < missingSubjectsData.length; i += 1000) {
         chunks.push(missingSubjectsData.slice(i, i + 1000));
       }
-      await Promise.all(chunks.map(chunk =>
-        db.insert(subjects).values(chunk).onConflictDoNothing({ target: subjects.subjectCode })
-      ));
+      for (const chunk of chunks) {
+        await db.insert(subjects).values(chunk).onConflictDoNothing({ target: subjects.subjectCode });
+      }
       const allSubj = await db.select().from(subjects).where(inArray(subjects.subjectCode, uniqueSubjects));
       for (const s of allSubj) {
         subjectMap.set(s.subjectCode, s);
@@ -311,10 +311,10 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < studentIds.length; i += 500) {
         chunks.push(studentIds.slice(i, i + 500));
       }
-      const resultsPerChunk = await Promise.all(chunks.map(chunk =>
-        db.select().from(results).where(inArray(results.studentId, chunk))
-      ));
-      allExistingResults = resultsPerChunk.flat();
+      for (const chunk of chunks) {
+        const resultsPerChunk = await db.select().from(results).where(inArray(results.studentId, chunk));
+        allExistingResults.push(...resultsPerChunk);
+      }
     }
 
     const previousAttemptsMap = new Map<string, typeof results.$inferSelect[]>();
@@ -464,9 +464,9 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < resultIdsToUpdateLatest.length; i += 1000) {
         chunks.push(resultIdsToUpdateLatest.slice(i, i + 1000));
       }
-      await Promise.all(chunks.map(chunk =>
-        db.update(results).set({ isLatest: false }).where(inArray(results.id, chunk))
-      ));
+      for (const chunk of chunks) {
+        await db.update(results).set({ isLatest: false }).where(inArray(results.id, chunk));
+      }
     }
 
     // 8b. Revaluation grade in-place updates (small set — typically a few hundred max)
@@ -485,9 +485,10 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < resultsToInsert.length; i += 1000) {
         chunks.push(resultsToInsert.slice(i, i + 1000));
       }
-      await Promise.all(chunks.map(chunk =>
-        db.insert(results).values(chunk)
-      ));
+      for (const chunk of chunks) {
+        // use onConflictDoNothing to be extra safe against race conditions between read and write
+        await db.insert(results).values(chunk).onConflictDoNothing();
+      }
     }
 
     return { processed, skipped, errors };
@@ -530,9 +531,9 @@ export class DatabaseStorage implements IStorage {
         chunks.push(studentsToUpsert.slice(i, i + 1000));
       }
 
-      // Execute all chunk inserts in parallel
-      await Promise.all(chunks.map(chunk =>
-        db.insert(students)
+      // Execute all chunk inserts sequentially to protect DB pool
+      for (const chunk of chunks) {
+        await db.insert(students)
           .values(chunk)
           .onConflictDoUpdate({
             target: students.rollNumber,
@@ -542,8 +543,8 @@ export class DatabaseStorage implements IStorage {
               batch: sql`EXCLUDED.batch`,
               regulation: sql`EXCLUDED.regulation`
             }
-          })
-      ));
+          });
+      }
     }
 
     return { processed, errors };

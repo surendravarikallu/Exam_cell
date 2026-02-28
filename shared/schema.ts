@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -40,6 +40,16 @@ export const results = pgTable("results", {
   status: text("status").notNull(), // PASS, BACKLOG
   isLatest: boolean("is_latest").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    // Unique constraint to prevent concurrent duplicate uploads
+    uniqueResultIdx: uniqueIndex("unique_result_idx").on(
+      table.studentId,
+      table.subjectId,
+      table.examType,
+      table.academicYear
+    )
+  };
 });
 
 // Base schemas

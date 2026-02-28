@@ -28,6 +28,19 @@ GRADE_MAP = {
 
 app = FastAPI()
 
+# Global process pool executor
+process_pool = None
+
+@app.on_event("startup")
+def startup_event():
+    global process_pool
+    # 8 cores based on server spec, adjust if needed
+    process_pool = concurrent.futures.ProcessPoolExecutor(max_workers=8)
+
+@app.on_event("shutdown")
+def shutdown_event():
+    process_pool.shutdown()
+
 def process_page(page_index, contents):
     """
     Function to process a single page. 
@@ -122,18 +135,21 @@ async def parse_pdf(file: UploadFile = File(...)):
     pdf = PdfDocument(contents)
     num_pages = len(pdf)
     
-    # Process pages in parallel
-    cpu_count = multiprocessing.cpu_count()
+    # Process pages using the global process pool
+    # The asyncio event loop awaits the CPU-bound tasks
+    import asyncio
+    loop = asyncio.get_running_loop()
     
-    with concurrent.futures.ProcessPoolExecutor(max_workers=cpu_count) as executor:
-        # submit tasks
-        futures = [executor.submit(process_page, i, contents) for i in range(num_pages)]
-        
-        for future in concurrent.futures.as_completed(futures):
-            page_results, page_reg = future.result()
-            results.extend(page_results)
-            if detected_regulation == "Unknown" and page_reg != "Unknown":
-                detected_regulation = page_reg
+    futures = [
+        loop.run_in_executor(process_pool, process_page, i, contents)
+        for i in range(num_pages)
+    ]
+    
+    for future in await asyncio.gather(*futures):
+        page_results, page_reg = future
+        results.extend(page_results)
+        if detected_regulation == "Unknown" and page_reg != "Unknown":
+            detected_regulation = page_reg
                 
     return {"results": results, "count": len(results), "regulation": detected_regulation}
 

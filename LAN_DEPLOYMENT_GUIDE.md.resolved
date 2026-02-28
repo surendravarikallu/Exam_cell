@@ -1,0 +1,95 @@
+# ExamCell LAN Deployment Guide
+
+This guide details how to deploy your ExamCell application onto a production server (like your 20GB RAM / 8 Core college server) for reliable, concurrent, local area network (LAN) access.
+
+## Prerequisites
+Before starting, ensure your server has the following installed:
+1. **Node.js** (v18 or higher)
+2. **Python** (v3.9 or higher)
+3. **PostgreSQL** (Local pgAdmin/Postgres install)
+4. **Git** (if you pull code from GitHub)
+
+## Step 1: Set Up Local Database
+
+1. Open **pgAdmin**.
+2. Create a new Database named `examcell_prod`.
+3. Create a `.env` file in the root of your project folder.
+4. Add your exact local PostgreSQL connection string to the `.env` file. It should look something like this:
+   ```env
+   DATABASE_URL=postgresql://postgres:your_db_password@localhost:5432/examcell_prod
+   SESSION_SECRET=super_secret_college_key_123
+   ```
+5. Apply the database schema by running:
+   ```bash
+   npm run db:push
+   ```
+
+## Step 2: Install Global Process Manager (PM2)
+
+PM2 is an industry-standard production process manager. It ensures your server stays alive, restarts automatically if it crashes, and starts up automatically when the physical server reboots.
+
+Open a terminal (PowerShell/Command Prompt) as Administrator and run:
+```bash
+npm install -g pm2
+```
+
+## Step 3: Install Project Dependencies
+
+If you haven't already:
+```bash
+# Install Node.js backend/frontend dependencies
+npm install
+
+# Install Python parser dependencies
+cd parser-service
+pip install fastapi uvicorn pypdfium2 python-multipart
+cd ..
+```
+
+## Step 4: Build for Production
+
+Build the React frontend and TypeScript backend into optimized production files:
+```bash
+npm run build
+```
+
+## Step 5: Start the Server
+
+We have configured an `ecosystem.config.cjs` file to manage both the Node application and the Python PDF parser automatically.
+
+From the root project folder, run:
+```bash
+pm2 start ecosystem.config.cjs
+```
+
+To ensure PM2 automatically starts both servers when the Windows Server reboots:
+```bash
+npm install -g pm2-windows-startup
+pm2-startup install
+pm2 save
+```
+
+*(You can monitor the server logs with `pm2 log` or view the status with `pm2 status`)*
+
+## Step 6: LAN Network Configuration (Windows Firewall)
+
+By default, Windows blocks incoming connections. To allow other computers on the college LAN to access the website, you must open the port (default `5000`).
+
+1. Open **Windows Defender Firewall with Advanced Security**.
+2. Click **Inbound Rules** on the left.
+3. Click **New Rule...** on the right.
+4. Select **Port** and click Next.
+5. Select **TCP** and enter Specific local ports: `5000`. Click Next.
+6. Select **Allow the connection**. Click Next.
+7. Apply to **Domain**, **Private**, and **Public** networks. Click Next.
+8. Name it `ExamCell Web Server` and click Finish.
+
+---
+
+### You're Done!
+You can now access the website from any computer connected to the college LAN by typing the server's local IP address and port into a web browser.
+
+**Example:**
+`http://192.168.1.100:5000`
+
+*(To find the server's IP address, open Command Prompt on the server and type `ipconfig`. Look for the "IPv4 Address").*
